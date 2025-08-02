@@ -1,11 +1,11 @@
-name: Simple Test
+name: Real API Test
 
 on:
   workflow_dispatch:
 
 jobs:
-  simple-test:
-    name: Basic Test
+  real-api-test:
+    name: Test with Real API
     runs-on: ubuntu-latest
     
     steps:
@@ -15,43 +15,51 @@ jobs:
     - name: Check files exist
       run: |
         echo "Checking if agent files exist..."
-        ls -la agents/
         ls -la agents/crewai-agent/
-        ls -la agents/langraph-agent/ 
-        ls -la agents/adk-agent/
         
-    - name: Test one Docker build
+    - name: Build crewai-agent
       run: |
-        echo "Building one agent (crewai-agent)..."
+        echo "Building crewai-agent..."
         cd agents/crewai-agent
         docker build -t test-gemini .
         echo "Build successful!"
         
-    - name: Test image runs
+    - name: Test with real API key
       run: |
-        echo "Testing if image can start..."
-        echo "GOOGLE_API_KEY=fake-key" > test.env
-        echo "GEMINI_MODEL=gemini-2.0-flash-exp" >> test.env
+        echo "Testing with real API key..."
+        echo "GOOGLE_API_KEY=${{ secrets.GOOGLE_API_KEY }}" > test.env
+        echo "GEMINI_MODEL=gemini-2.5-flash" >> test.env
         
-        # Start container in background
+        # Start container
         docker run -d --name test-container \
           --env-file test.env \
           -p 8080:8080 \
           test-gemini
         
-        # Wait a bit
-        sleep 20
+        # Wait for startup
+        sleep 30
         
-        # Check if it's running
-        docker ps
-        
-        # Try to get logs
-        echo "Container logs:"
+        # Check logs
+        echo "=== Container logs ==="
         docker logs test-container
         
-        # Try health check
-        echo "Testing health endpoint..."
-        curl -v http://localhost:8080/health || echo "Health check failed"
+        # Health check
+        echo "=== Health check ==="
+        curl -s http://localhost:8080/health | jq . || echo "Health check failed"
+        
+        # Capabilities check
+        echo "=== Capabilities ==="
+        curl -s http://localhost:8080/capabilities | jq . || echo "Capabilities failed"
+        
+        # Test actual task execution
+        echo "=== Testing real task execution ==="
+        curl -X POST http://localhost:8080/execute \
+          -H "Content-Type: application/json" \
+          -d '{
+            "task_type": "research",
+            "description": "Quick test of AI capabilities",
+            "context": {"test": true}
+          }' | jq . || echo "Task execution failed"
         
         # Cleanup
         docker stop test-container
