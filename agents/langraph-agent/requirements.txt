@@ -1,0 +1,9 @@
+fastapi
+uvicorn[standard]
+pydantic
+langgraph
+langchain-google-genai
+google-generativeai
+python-multipart
+httpx
+python-dotenv

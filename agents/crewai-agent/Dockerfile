@@ -1,0 +1,26 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy requirements first for better caching
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy application code
+COPY . .
+
+# Expose port
+EXPOSE 8080
+
+# Health check - disabled temporarily for debugging
+# HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
+#     CMD curl -f http://localhost:8081/health || exit 1
+
+# Run the application with debug info
+CMD ["sh", "-c", "echo 'Starting agent...' && echo 'GOOGLE_API_KEY set:' ${GOOGLE_API_KEY:+yes} ${GOOGLE_API_KEY:-no} && python main.py"]

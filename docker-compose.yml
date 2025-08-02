@@ -1,0 +1,107 @@
+services:
+  # Gemini Agent - Research & Analysis
+  gemini-agent:
+    build:
+      context: ./agents/crewai-agent
+      dockerfile: Dockerfile
+    container_name: gemini-agent
+    ports:
+      - "8080:8080"
+    environment:
+      - AGENT_ID=gemini-agent
+      - AGENT_NAME=Gemini Research Agent
+      - AGENT_TYPE=gemini
+      - HOST=0.0.0.0
+      - PORT=8080
+      - GEMINI_MODEL=gemini-2.5-flash
+      - MAX_EXECUTION_TIME=300
+      - LOG_LEVEL=INFO
+    env_file:
+      - ./agents/crewai-agent/.env
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+    networks:
+      - agent-network
+
+  # LangGraph Agent - Decision Making & Workflows
+  langraph-agent:
+    build:
+      context: ./agents/langraph-agent
+      dockerfile: Dockerfile
+    container_name: langraph-agent
+    ports:
+      - "8082:8082"
+    environment:
+      - AGENT_ID=langraph-agent
+      - AGENT_NAME=LangGraph Decision Agent
+      - AGENT_TYPE=langraph
+      - HOST=0.0.0.0
+      - PORT=8082
+      - GEMINI_MODEL=gemini-2.5-flash
+      - MAX_EXECUTION_TIME=300
+      - MAX_WORKFLOW_STEPS=10
+      - LOG_LEVEL=INFO
+    env_file:
+      - ./agents/langraph-agent/.env
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8082/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+    networks:
+      - agent-network
+    depends_on:
+      - gemini-agent
+
+  # ADK Agent - Data Processing
+  adk-agent:
+    build:
+      context: ./agents/adk-agent
+      dockerfile: Dockerfile
+    container_name: adk-agent
+    ports:
+      - "8083:8083"
+    environment:
+      - AGENT_ID=adk-agent
+      - AGENT_NAME=ADK Data Processing Agent
+      - AGENT_TYPE=adk
+      - HOST=0.0.0.0
+      - PORT=8083
+      - GEMINI_MODEL=gemini-2.5-flash
+      - MAX_EXECUTION_TIME=300
+      - MAX_DATASET_SIZE=10000
+      - LOG_LEVEL=INFO
+    env_file:
+      - ./agents/adk-agent/.env
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8083/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+    networks:
+      - agent-network
+    depends_on:
+      - gemini-agent
+      - langraph-agent
+
+# Custom network for agent communication
+networks:
+  agent-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+
+# Optional: Volumes for logs and data persistence
+volumes:
+  agent-logs:
+    driver: local
