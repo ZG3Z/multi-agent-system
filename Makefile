@@ -1,6 +1,6 @@
 # Multi-Agent System Makefile
 
-.PHONY: help start stop test logs clean build status
+.PHONY: help start stop test logs clean build status ci lint format
 
 # Default target
 help:
@@ -19,6 +19,11 @@ help:
 	@echo "  make test           - Run tests (agents must be running)"
 	@echo "  make test-with-startup - Start agents and run tests"
 	@echo "  make health         - Check agent health"
+	@echo "  make ci             - Run full CI pipeline locally"
+	@echo ""
+	@echo "Code Quality:"
+	@echo "  make lint     - Run linting checks"
+	@echo "  make format   - Format code with black and isort"
 	@echo ""
 	@echo "Monitoring:"
 	@echo "  make status   - Show system status"
@@ -63,7 +68,7 @@ test-with-startup:
 # Run tests (assumes agents are already running)
 test:
 	@echo "Running tests..."
-	@./scripts/test-agents.sh
+	@python -m pytest tests/ -v
 
 # Health check
 health:
@@ -97,6 +102,39 @@ reset:
 	@docker system prune -f
 	@echo "System reset complete. Run 'make setup' to start fresh."
 
+# Code quality targets
+lint:
+	@echo "Running linting checks..."
+	@python -m flake8 agents/ --max-line-length=127 --extend-ignore=E203,W503
+	@echo "Checking code formatting..."
+	@python -m black --check agents/
+	@echo "Checking import sorting..."
+	@python -m isort --check-only agents/
+
+format:
+	@echo "Formatting code..."
+	@python -m black agents/
+	@python -m isort agents/
+	@echo "Code formatted!"
+
+# CI pipeline (run locally)
+ci: lint build test-ci-env
+	@echo "CI pipeline completed successfully!"
+
+# Test with CI environment (fake API keys)
+test-ci-env:
+	@echo "Setting up CI test environment..."
+	@for agent in crewai-agent langraph-agent adk-agent; do \
+		echo "GOOGLE_API_KEY=test-key-for-ci" > agents/$$agent/.env; \
+		echo "GEMINI_MODEL=gemini-2.0-flash-exp" >> agents/$$agent/.env; \
+	done
+	@make start
+	@sleep 30
+	@chmod +x scripts/wait-for-services.sh
+	@./scripts/wait-for-services.sh
+	@python -m pytest tests/test_ci_integration.py -v
+	@make stop
+
 # Development helpers
 dev-gemini:
 	@docker-compose logs -f gemini-agent
@@ -106,3 +144,17 @@ dev-langraph:
 
 dev-adk:
 	@docker-compose logs -f adk-agent
+
+# Install development dependencies
+install-dev:
+	@echo "Installing development dependencies..."
+	@pip install flake8 black isort pytest pytest-asyncio httpx
+
+# Docker image testing
+test-images:
+	@echo "Testing Docker images..."
+	@for agent in crewai-agent langraph-agent adk-agent; do \
+		echo "Testing $$agent image..."; \
+		docker build -t $$agent:test agents/$$agent/; \
+		docker run --rm $$agent:test python -c "print('$$agent image OK')"; \
+	done
