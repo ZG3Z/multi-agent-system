@@ -237,6 +237,10 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         pip install pytest pytest-asyncio httpx
+        # Also install agent dependencies for better integration testing
+        pip install -r agents/adk-agent/requirements.txt
+        pip install -r agents/crewai-agent/requirements.txt  
+        pip install -r agents/langraph-agent/requirements.txt
         
     - name: Create test environment
       run: |
@@ -275,7 +279,7 @@ jobs:
     - name: Run integration tests
       run: |
         echo "Running integration tests..."
-        python -m pytest tests/test_ci_integration.py -v --tb=short
+        python -m pytest tests/test_ci_integration.py -v --tb=short --asyncio-mode=auto
         
     - name: Test A2A communication
       run: |
