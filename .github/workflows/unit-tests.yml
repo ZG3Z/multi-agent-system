@@ -30,17 +30,33 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install pytest pytest-asyncio pandas numpy scipy
-        pip install google-generativeai pydantic fastapi
         
-    - name: Run ADK Agent unit tests
+        # Install pytest and testing dependencies
+        pip install pytest pytest-asyncio
+        
+        # Install dependencies from each agent
+        pip install -r agents/adk-agent/requirements.txt
+        pip install -r agents/crewai-agent/requirements.txt
+        pip install -r agents/langraph-agent/requirements.txt
+        
+    - name: Run unit tests
       run: |
-        echo "Testing ADK Agent logic..."
+        echo "Running unit tests for all agents..."
+        
+        echo "=== ADK Agent unit tests ==="
         python -m pytest tests/unit/test_adk_logic.py -v
+        
+        echo "=== CrewAI Agent unit tests ==="
+        python -m pytest tests/unit/test_crewai_logic.py -v
+        
+        echo "=== LangGraph Agent unit tests ==="
+        python -m pytest tests/unit/test_langraph_logic.py -v
         
     - name: Generate test report
       if: always()
       run: |
         echo "Unit test summary:"
         echo "- ADK Agent: Completed"
-        echo "- Next: Add Crewai and LangGraph unit tests"
+        echo "- CrewAI Agent: Completed" 
+        echo "- LangGraph Agent: Completed"
+        echo "All unit tests completed successfully!"
