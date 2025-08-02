@@ -1,66 +1,60 @@
-name: Real API Test
+name: Python Test Script
 
 on:
   workflow_dispatch:
 
 jobs:
-  real-api-test:
-    name: Test with Real API
+  python-test:
+    name: Test using Python script
     runs-on: ubuntu-latest
     
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
       
-    - name: Check files exist
-      run: |
-        echo "Checking if agent files exist..."
-        ls -la agents/crewai-agent/
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
         
-    - name: Build crewai-agent
+    - name: Install dependencies
       run: |
-        echo "Building crewai-agent..."
+        python -m pip install --upgrade pip
+        pip install httpx asyncio
+        
+    - name: Create env file for agent
+      run: |
+        echo "GOOGLE_API_KEY=${{ secrets.GOOGLE_API_KEY }}" > agents/crewai-agent/.env
+        echo "GEMINI_MODEL=gemini-2.0-flash-exp" >> agents/crewai-agent/.env
+        
+    - name: Build and start crewai-agent
+      run: |
         cd agents/crewai-agent
-        docker build -t test-gemini .
-        echo "Build successful!"
-        
-    - name: Test with real API key
-      run: |
-        echo "Testing with real API key..."
-        echo "GOOGLE_API_KEY=${{ secrets.GOOGLE_API_KEY }}" > test.env
-        echo "GEMINI_MODEL=gemini-2.5-flash" >> test.env
-        
-        # Start container
-        docker run -d --name test-container \
-          --env-file test.env \
+        docker build -t crewai-agent .
+        docker run -d --name crewai-agent \
+          --env-file .env \
           -p 8080:8080 \
-          test-gemini
+          crewai-agent
         
-        # Wait for startup
+    - name: Wait for agent to start
+      run: |
+        echo "Waiting for agent to start..."
         sleep 30
         
-        # Check logs
-        echo "=== Container logs ==="
-        docker logs test-container
+        # Check if container is running
+        docker ps
         
-        # Health check
-        echo "=== Health check ==="
-        curl -s http://localhost:8080/health | jq . || echo "Health check failed"
+        # Show logs
+        echo "=== Agent logs ==="
+        docker logs crewai-agent
         
-        # Capabilities check
-        echo "=== Capabilities ==="
-        curl -s http://localhost:8080/capabilities | jq . || echo "Capabilities failed"
+    - name: Run Python test script
+      run: |
+        echo "Running test_crewai_agent.py..."
+        python tests/test_crewai_agent.py
         
-        # Test actual task execution
-        echo "=== Testing real task execution ==="
-        curl -X POST http://localhost:8080/execute \
-          -H "Content-Type: application/json" \
-          -d '{
-            "task_type": "research",
-            "description": "Quick test of AI capabilities",
-            "context": {"test": true}
-          }' | jq . || echo "Task execution failed"
-        
-        # Cleanup
-        docker stop test-container
-        docker rm test-container
+    - name: Cleanup
+      if: always()
+      run: |
+        docker stop crewai-agent || true
+        docker rm crewai-agent || true
