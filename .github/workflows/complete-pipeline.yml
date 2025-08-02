@@ -286,8 +286,15 @@ jobs:
         echo "Testing A2A communication..."
         if [ -f "tests/test_a2a_communication.py" ]; then
           python tests/test_a2a_communication.py
+        elif [ -f "tests/test_a2a_communication.py" ]; then
+          # Try with PYTHONPATH fix
+          export PYTHONPATH="${PYTHONPATH}:agents/crewai-agent"
+          python tests/test_a2a_communication.py
         else
-          echo "A2A tests not found, skipping..."
+          echo "A2A tests not found, creating basic A2A connectivity test..."
+          curl -s http://localhost:8080/health | grep "healthy" && echo "✅ Gemini agent A2A ready"
+          curl -s http://localhost:8082/health | grep "healthy" && echo "✅ LangGraph agent A2A ready"  
+          curl -s http://localhost:8083/health | grep "healthy" && echo "✅ ADK agent A2A ready"
         fi
         
     - name: Show service logs on failure
