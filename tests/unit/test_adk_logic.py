@@ -12,8 +12,10 @@ import numpy as np
 # Add agent path for imports
 sys.path.append(os.path.join(os.path.dirname(__file__), '../../agents/adk-agent'))
 
-from agent_logic import ADKLogic
-from models import TaskType
+# Mock environment before imports
+with patch.dict(os.environ, {'GOOGLE_API_KEY': 'fake-test-key'}):
+    from agent_logic import ADKLogic
+    from models import TaskType
 
 class TestADKLogic:
     """Test ADK business logic without external dependencies"""
@@ -36,10 +38,8 @@ class TestADKLogic:
             mock_instance.generate_content.return_value = mock_gemini_response
             mock_model.return_value = mock_instance
             
-            # Mock environment variables
-            with patch.dict(os.environ, {'GOOGLE_API_KEY': 'fake-key'}):
-                logic = ADKLogic()
-                return logic
+            logic = ADKLogic()
+            return logic
     
     def test_capabilities_loading(self, adk_logic):
         """Test that capabilities are loaded correctly"""
@@ -67,8 +67,7 @@ class TestDataTransformation:
     def adk_logic(self):
         """Create ADK logic with mocked dependencies"""
         with patch('google.generativeai.configure'), \
-             patch('google.generativeai.GenerativeModel'), \
-             patch.dict(os.environ, {'GOOGLE_API_KEY': 'fake-key'}):
+             patch('google.generativeai.GenerativeModel'):
             return ADKLogic()
     
     @pytest.mark.asyncio
@@ -130,8 +129,7 @@ class TestDataAnalysis:
     @pytest.fixture
     def adk_logic(self):
         with patch('google.generativeai.configure'), \
-             patch('google.generativeai.GenerativeModel'), \
-             patch.dict(os.environ, {'GOOGLE_API_KEY': 'fake-key'}):
+             patch('google.generativeai.GenerativeModel'):
             return ADKLogic()
     
     @pytest.mark.asyncio
@@ -174,8 +172,7 @@ class TestDataValidation:
     @pytest.fixture
     def adk_logic(self):
         with patch('google.generativeai.configure'), \
-             patch('google.generativeai.GenerativeModel'), \
-             patch.dict(os.environ, {'GOOGLE_API_KEY': 'fake-key'}):
+             patch('google.generativeai.GenerativeModel'):
             return ADKLogic()
     
     @pytest.mark.asyncio
