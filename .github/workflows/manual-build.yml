@@ -1,4 +1,4 @@
-name: Manual Build & Test
+name: Manual Build & Test (v2)
 
 on:
   workflow_dispatch:
@@ -60,9 +60,8 @@ jobs:
         isort --check-only agents/ || true
         
     - name: Set up Docker Buildx
-      if: contains(github.event.inputs.action, 'build') || github.event.inputs.action == 'full-pipeline'
       uses: docker/setup-buildx-action@v3
-      
+        
     - name: Log in to Container Registry
       if: github.event.inputs.action == 'build-and-push' || github.event.inputs.action == 'full-pipeline'
       uses: docker/login-action@v3
@@ -114,19 +113,44 @@ jobs:
           echo "GEMINI_MODEL=gemini-2.0-flash-exp" >> agents/$agent/.env
         done
         
-        # Start services
-        docker-compose up -d --build
-        sleep 30
+        # Build images first
+        docker build -t gemini-agent:latest ./agents/crewai-agent/
+        docker build -t langraph-agent:latest ./agents/langraph-agent/
+        docker build -t adk-agent:latest ./agents/adk-agent/
         
-        # Wait for services
-        chmod +x scripts/wait-for-services.sh
-        ./scripts/wait-for-services.sh
+        # Start services using docker compose (new syntax)
+        docker compose up -d
+        sleep 60
+        
+        # Check what's running
+        docker compose ps
+        docker compose logs --tail=20
+        
+        # Wait for services with more robust checking
+        max_attempts=20
+        for port in 8080 8082 8083; do
+          echo "Waiting for service on port $port..."
+          for i in $(seq 1 $max_attempts); do
+            if curl -s -f "http://localhost:$port/health" > /dev/null 2>&1; then
+              echo "Service on port $port is ready"
+              break
+            else
+              if [ $i -eq $max_attempts ]; then
+                echo "Service on port $port failed to start"
+                docker compose logs
+                exit 1
+              fi
+              echo "Attempt $i/$max_attempts, waiting..."
+              sleep 5
+            fi
+          done
+        done
         
         # Run tests
         python -m pytest tests/test_ci_integration.py -v
         
         # Cleanup
-        docker-compose down -v
+        docker compose down -v
         
     - name: Summary
       run: |
