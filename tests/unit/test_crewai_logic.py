@@ -10,8 +10,10 @@ from unittest.mock import Mock, patch, AsyncMock
 # Add agent path for imports
 sys.path.append(os.path.join(os.path.dirname(__file__), '../../agents/crewai-agent'))
 
-from agent_logic import CrewAILogic
-from models import TaskType
+# Mock environment before imports
+with patch.dict(os.environ, {'GOOGLE_API_KEY': 'fake-test-key'}):
+    from agent_logic import CrewAILogic
+    from models import TaskType
 
 class TestCrewAILogic:
     """Test CrewAI business logic without external dependencies"""
@@ -34,10 +36,8 @@ class TestCrewAILogic:
             mock_instance.generate_content.return_value = mock_gemini_response
             mock_model.return_value = mock_instance
             
-            # Mock environment variables
-            with patch.dict(os.environ, {'GOOGLE_API_KEY': 'fake-key'}):
-                logic = CrewAILogic()
-                return logic
+            logic = CrewAILogic()
+            return logic
     
     def test_capabilities_loading(self, crewai_logic):
         """Test that capabilities are loaded correctly"""
@@ -63,8 +63,7 @@ class TestResearchTask:
     def crewai_logic(self):
         """Create CrewAI logic with mocked dependencies"""
         with patch('google.generativeai.configure'), \
-             patch('google.generativeai.GenerativeModel'), \
-             patch.dict(os.environ, {'GOOGLE_API_KEY': 'fake-key'}):
+             patch('google.generativeai.GenerativeModel'):
             return CrewAILogic()
     
     @pytest.mark.asyncio

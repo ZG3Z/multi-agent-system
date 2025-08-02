@@ -10,8 +10,10 @@ from unittest.mock import Mock, patch, AsyncMock
 # Add agent path for imports
 sys.path.append(os.path.join(os.path.dirname(__file__), '../../agents/langraph-agent'))
 
-from agent_logic import LangGraphLogic, WorkflowState
-from models import TaskType
+# Mock environment before imports
+with patch.dict(os.environ, {'GOOGLE_API_KEY': 'fake-test-key'}):
+    from agent_logic import LangGraphLogic, WorkflowState
+    from models import TaskType
 
 class TestLangGraphLogic:
     """Test LangGraph business logic without external dependencies"""
@@ -27,8 +29,7 @@ class TestLangGraphLogic:
     def langraph_logic(self, mock_gemini_response):
         """Create LangGraph logic instance with mocked dependencies"""
         with patch('langchain_google_genai.ChatGoogleGenerativeAI') as mock_llm_class, \
-             patch('langgraph.checkpoint.memory.MemorySaver'), \
-             patch.dict(os.environ, {'GOOGLE_API_KEY': 'fake-key'}):
+             patch('langgraph.checkpoint.memory.MemorySaver'):
             
             # Mock the LLM instance
             mock_llm = Mock()
@@ -64,8 +65,7 @@ class TestDecisionMaking:
     def langraph_logic(self):
         """Create LangGraph logic with mocked dependencies"""
         with patch('langchain_google_genai.ChatGoogleGenerativeAI') as mock_llm_class, \
-             patch('langgraph.checkpoint.memory.MemorySaver'), \
-             patch.dict(os.environ, {'GOOGLE_API_KEY': 'fake-key'}):
+             patch('langgraph.checkpoint.memory.MemorySaver'):
             
             mock_llm = Mock()
             mock_llm_class.return_value = mock_llm
