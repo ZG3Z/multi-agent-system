@@ -9,11 +9,11 @@ agents:
     resources:
       # Tylko prod środowisko - zero kosztów gdy nie używane
       prod:
-        cpu: "0.25"           # Minimum CPU dla kosztów
+        cpu: "1"           # Minimum CPU dla kosztów
         memory: "512Mi"       # Minimum memory
         min_instances: 0      # Zero kosztów bez ruchu
         max_instances: 1      # Jedna instancja wystarczy na start
-        concurrency: 50      # Więcej requestów na instancję = mniej instancji
+        concurrency: 80      # Więcej requestów na instancję = mniej instancji
 
   - name: langraph-agent
     service: langraph-agent
@@ -21,11 +21,11 @@ agents:
     description: "LangGraph decision-making and workflow agent"
     resources:
       prod:
-        cpu: "0.25"
+        cpu: "1"
         memory: "512Mi"
         min_instances: 0
         max_instances: 1
-        concurrency: 50
+        concurrency: 80
 
   - name: adk-agent
     service: adk-agent
@@ -33,11 +33,11 @@ agents:
     description: "ADK data processing and analysis agent"
     resources:
       prod:
-        cpu: "0.5"            # Trochę więcej dla przetwarzania danych
+        cpu: "1"            # Trochę więcej dla przetwarzania danych
         memory: "1Gi"         # Więcej RAM dla DataFrames
         min_instances: 0
-        max_instances: 2      # Może potrzebować więcej przy większych danych
-        concurrency: 20      # Mniej concurrent requests dla data processing
+        max_instances: 1      # Może potrzebować więcej przy większych danych
+        concurrency: 80      # Mniej concurrent requests dla data processing
 
 # Globalne ustawienia - zoptymalizowane pod koszty
 global:
