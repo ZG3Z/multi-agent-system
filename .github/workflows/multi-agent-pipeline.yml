@@ -505,13 +505,15 @@ jobs:
     - name: Ensure Secret Manager secret exists
       run: |
         SECRET_NAME="${{ vars.GOOGLE_API_KEY_SECRET_NAME }}"
-        if ! gcloud secrets describe ${SECRET_NAME} >/dev/null 2>&1; then
+        if gcloud secrets describe ${SECRET_NAME} >/dev/null 2>&1; then
+          echo "Secret ${SECRET_NAME} already exists, updating..."
+          echo "${{ secrets.GOOGLE_API_KEY }}" | gcloud secrets versions add ${SECRET_NAME} --data-file=-
+        else
           echo "Creating secret ${SECRET_NAME}..."
           echo "${{ secrets.GOOGLE_API_KEY }}" | gcloud secrets create ${SECRET_NAME} --data-file=-
-        else
-          echo "Updating secret ${SECRET_NAME}..."
-          echo "${{ secrets.GOOGLE_API_KEY }}" | gcloud secrets versions add ${SECRET_NAME} --data-file=-
         fi
+        
+        echo "Secret ${SECRET_NAME} is ready"
         
     - name: Deploy ${{ matrix.agent.service }} to Cloud Run
       id: deploy
