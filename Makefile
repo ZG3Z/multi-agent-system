@@ -73,9 +73,9 @@ test:
 # Health check
 health:
 	@echo "Checking agent health..."
-	@curl -s http://localhost:8080/health | jq '.status' 2>/dev/null || echo "Gemini Agent: Not responding"
-	@curl -s http://localhost:8082/health | jq '.status' 2>/dev/null || echo "LangGraph Agent: Not responding"  
-	@curl -s http://localhost:8083/health | jq '.status' 2>/dev/null || echo "ADK Agent: Not responding"
+	@curl -s http://localhost:8080/health | jq '.status' 2>/dev/null || echo "CrewAI Agent: Not responding"    # ← ZMIEŃ
+	@curl -s http://localhost:8082/health | jq '.status' 2>/dev/null || echo "LangGraph Agent: Not responding"  # ← ZMIEŃ
+	@curl -s http://localhost:8083/health | jq '.status' 2>/dev/null || echo "ADK Agent: Not responding"        # ← ZMIEŃ
 
 # Show system status
 status:

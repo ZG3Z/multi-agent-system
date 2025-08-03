@@ -7,7 +7,7 @@ load_dotenv()
 class Config:
     # Agent identity
     AGENT_ID: str = os.getenv("AGENT_ID", "adk-agent")
-    AGENT_NAME: str = os.getenv("AGENT_NAME", "ADK Data Processing Agent")
+    AGENT_NAME: str = os.getenv("AGENT_NAME", "ADK Agent")  # ← ZMIEŃ
     AGENT_TYPE: str = os.getenv("AGENT_TYPE", "adk")
     
     # Server settings

@@ -8,7 +8,7 @@ load_dotenv()
 class Config:
     # Agent identity
     AGENT_ID: str = os.getenv("AGENT_ID", "crewai-agent")
-    AGENT_NAME: str = os.getenv("AGENT_NAME", "CrewAI Research Agent")
+    AGENT_NAME: str = os.getenv("AGENT_NAME", "CrewAI Agent")  # ← ZMIEŃ
     AGENT_TYPE: str = os.getenv("AGENT_TYPE", "crewai")
     
     # Server settings

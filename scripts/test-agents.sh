@@ -13,7 +13,7 @@ fi
 
 # Basic health checks
 echo "Basic health checks..."
-agents=("8080:Gemini" "8082:LangGraph" "8083:ADK")
+agents=("8080:CrewAI" "8082:LangGraph" "8083:ADK")
 
 for agent_info in "${agents[@]}"; do
     port=$(echo $agent_info | cut -d: -f1)
@@ -51,7 +51,7 @@ done
 
 echo ""
 echo "View detailed logs:"
-echo "docker-compose logs gemini-agent"
+echo "docker-compose logs crewai-agent"
 echo "docker-compose logs langraph-agent" 
 echo "docker-compose logs adk-agent"
 echo ""

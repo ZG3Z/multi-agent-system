@@ -7,7 +7,7 @@ load_dotenv()
 class Config:
     # Agent identity
     AGENT_ID: str = os.getenv("AGENT_ID", "langraph-agent")
-    AGENT_NAME: str = os.getenv("AGENT_NAME", "LangGraph Decision Agent")
+    AGENT_NAME: str = os.getenv("AGENT_NAME", "LangGraph Agent")  # ← ZMIEŃ
     AGENT_TYPE: str = os.getenv("AGENT_TYPE", "langraph")
     
     # Server settings

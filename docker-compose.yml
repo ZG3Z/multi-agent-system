@@ -1,16 +1,16 @@
 services:
-  # Gemini Agent - Research & Analysis
-  gemini-agent:
+  # CrewAI Agent - Research & Analysis
+  crewai-agent:
     build:
       context: ./agents/crewai-agent
       dockerfile: Dockerfile
-    container_name: gemini-agent
+    container_name: crewai-agent
     ports:
       - "8080:8080"
     environment:
-      - AGENT_ID=gemini-agent
-      - AGENT_NAME=Gemini Research Agent
-      - AGENT_TYPE=gemini
+      - AGENT_ID=crewai-agent
+      - AGENT_NAME=CrewAI Agent
+      - AGENT_TYPE=crewai
       - HOST=0.0.0.0
       - PORT=8080
       - GEMINI_MODEL=gemini-2.5-flash
@@ -38,7 +38,7 @@ services:
       - "8082:8082"
     environment:
       - AGENT_ID=langraph-agent
-      - AGENT_NAME=LangGraph Decision Agent
+      - AGENT_NAME=LangGraph Agent
       - AGENT_TYPE=langraph
       - HOST=0.0.0.0
       - PORT=8082
@@ -58,7 +58,7 @@ services:
     networks:
       - agent-network
     depends_on:
-      - gemini-agent
+      - crewai-agent
 
   # ADK Agent - Data Processing
   adk-agent:
@@ -70,7 +70,7 @@ services:
       - "8083:8083"
     environment:
       - AGENT_ID=adk-agent
-      - AGENT_NAME=ADK Data Processing Agent
+      - AGENT_NAME=ADK Agent
       - AGENT_TYPE=adk
       - HOST=0.0.0.0
       - PORT=8083
@@ -90,7 +90,7 @@ services:
     networks:
       - agent-network
     depends_on:
-      - gemini-agent
+      - crewai-agent
       - langraph-agent
 
 # Custom network for agent communication

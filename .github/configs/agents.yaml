@@ -36,7 +36,7 @@ agents:
         cpu: "1"            # Trochę więcej dla przetwarzania danych
         memory: "1Gi"         # Więcej RAM dla DataFrames
         min_instances: 0
-        max_instances: 1      # Może potrzebować więcej przy większych danych
+        max_instances: 1unoduetr      # Może potrzebować więcej przy większych danych
         concurrency: 80      # Mniej concurrent requests dla data processing
 
 # Globalne ustawienia - zoptymalizowane pod koszty

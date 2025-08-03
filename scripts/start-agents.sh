@@ -59,9 +59,9 @@ done
 
 echo ""
 echo "Multi-Agent System Status:"
-echo "Gemini Agent:    http://localhost:8080"
-echo "LangGraph Agent: http://localhost:8082" 
-echo "ADK Agent:       http://localhost:8083"
+echo "CrewAI Agent:    http://localhost:8080"  # ← ZMIEŃ
+echo "LangGraph Agent: http://localhost:8082"  # ← ZMIEŃ  
+echo "ADK Agent:       http://localhost:8083"  # ← ZMIEŃ
 echo ""
 echo "View logs: docker-compose logs -f [agent-name]"
 echo "Stop system: ./scripts/stop-agents.sh"

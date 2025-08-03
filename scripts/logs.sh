@@ -29,8 +29,9 @@ while [[ $# -gt 0 ]]; do
             echo ""
             echo "Examples:"
             echo "$0                    # Show logs for all agents"
-            echo "$0 gemini             # Show logs for gemini agent only"
+            echo "$0 crewai             # Show logs for crewai agent only"   # ← ZMIEŃ
             echo "$0 langraph -f        # Follow logs for langraph agent"
+            echo "$0 adk                # Show logs for adk agent"           # ← ZMIEŃ
             echo "$0 -f                 # Follow logs for all agents"
             exit 1
             ;;

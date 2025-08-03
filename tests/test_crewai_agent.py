@@ -17,7 +17,7 @@ BASE_URL = "http://localhost:8080"
 
 async def test_health():
     """Test health endpoint"""
-    print("Testing Gemini Agent health...")
+    print("Testing CrewAI Agent health...")
     async with httpx.AsyncClient() as client:
         response = await client.get(f"{BASE_URL}/health")
         print(f"Status: {response.status_code}")
