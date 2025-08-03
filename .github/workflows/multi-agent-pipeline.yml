@@ -106,13 +106,13 @@ jobs:
             
             # Validate each agent
             agent_names = set()
-            agent_ports = set()
+            # agent_ports = set()
             
             for i, agent in enumerate(config['agents']):
                 prefix = f"Agent {i+1}"
                 
                 # Check required fields
-                required_fields = ['name', 'service', 'port', 'description', 'resources']
+                required_fields = ['name', 'service', 'description', 'resources']
                 for field in required_fields:
                     if field not in agent:
                         print(f"ERROR: {prefix}: Missing required field '{field}'")
@@ -124,10 +124,10 @@ jobs:
                     sys.exit(1)
                 agent_names.add(agent['name'])
                 
-                if agent['port'] in agent_ports:
-                    print(f"ERROR: {prefix}: Duplicate port '{agent['port']}'")
-                    sys.exit(1)
-                agent_ports.add(agent['port'])
+                # if agent['port'] in agent_ports:
+                #     print(f"ERROR: {prefix}: Duplicate port '{agent['port']}'")
+                #     sys.exit(1)
+                # agent_ports.add(agent['port'])
                 
                 # Check prod environment exists
                 if 'prod' not in agent['resources']:
@@ -193,7 +193,7 @@ jobs:
             agent_config = {
                 'name': agent['name'],
                 'service': agent['service'],
-                'port': agent['port'],
+                # 'port': agent['port'],
                 'description': agent['description'],
                 'cpu': resources['cpu'],
                 'memory': resources['memory'],
@@ -239,20 +239,20 @@ jobs:
         if 'agents' in config:
             print("### Configured Agents")
             print("")
-            print("| Agent | Service | Port | CPU | Memory | Min/Max Instances |")
-            print("|-------|---------|------|-----|--------|-------------------|")
+            print("| Agent | Service | CPU | Memory | Min/Max Instances |")
+            print("|-------|---------|-----|--------|-------------------|")
             
             for agent in config['agents']:
                 name = agent['name']
                 service = agent['service']
-                port = agent['port']
+                # port = agent['port']
                 resources = agent['resources']['prod']
                 cpu = resources['cpu']
                 memory = resources['memory']
                 min_inst = resources['min_instances']
                 max_inst = resources['max_instances']
                 
-                print(f"| {name} | {service} | {port} | {cpu} | {memory} | {min_inst}/{max_inst} |")
+                print(f"| {name} | {service} | {cpu} | {memory} | {min_inst}/{max_inst} |")
             
             print("")
             print(f"**Total agents:** {len(config['agents'])}")
@@ -273,20 +273,20 @@ jobs:
         if 'agents' in config:
             print("### Configured Agents")
             print("")
-            print("| Agent | Service | Port | CPU | Memory | Min/Max Instances |")
-            print("|-------|---------|------|-----|--------|-------------------|")
+            print("| Agent | Service | CPU | Memory | Min/Max Instances |")
+            print("|-------|---------|-----|--------|-------------------|")
             
             for agent in config['agents']:
                 name = agent['name']
                 service = agent['service']
-                port = agent['port']
+                # port = agent['port']
                 resources = agent['resources']['prod']
                 cpu = resources['cpu']
                 memory = resources['memory']
                 min_inst = resources['min_instances']
                 max_inst = resources['max_instances']
                 
-                print(f"| {name} | {service} | {port} | {cpu} | {memory} | {min_inst}/{max_inst} |")
+                print(f"| {name} | {service} | {cpu} | {memory} | {min_inst}/{max_inst} |")
             
             print("")
             print(f"**Total agents:** {len(config['agents'])}")
@@ -536,7 +536,7 @@ jobs:
         echo "  Min instances: ${{ matrix.agent.min_instances }}"
         echo "  Max instances: ${{ matrix.agent.max_instances }}"
         echo "  Concurrency: ${{ matrix.agent.concurrency }}"
-        echo "  Port: ${{ matrix.agent.port }}"
+        # echo "  Port: ${{ matrix.agent.port }}"
         
         # Deploy to Cloud Run with dynamic configuration
         gcloud run deploy ${SERVICE_NAME} \
@@ -544,7 +544,7 @@ jobs:
           --platform managed \
           --region ${{ env.REGION }} \
           --allow-unauthenticated \
-          --port ${{ matrix.agent.port }} \
+          # --port ${{ matrix.agent.port }} \
           --cpu ${{ matrix.agent.cpu }} \
           --memory ${{ matrix.agent.memory }} \
           --min-instances ${{ matrix.agent.min_instances }} \
@@ -556,7 +556,7 @@ jobs:
           --set-env-vars "AGENT_ID=${{ matrix.agent.service }}" \
           --set-env-vars "AGENT_TYPE=${{ matrix.agent.name }}" \
           --set-env-vars "HOST=0.0.0.0" \
-          --set-env-vars "PORT=${{ matrix.agent.port }}" \
+          # --set-env-vars "PORT=${{ matrix.agent.port }}" \
           --set-env-vars "LOG_LEVEL=${{ vars.LOG_LEVEL || 'INFO' }}" \
           --set-env-vars "ENVIRONMENT=${{ github.event.inputs.environment }}" \
           --set-env-vars "GEMINI_MODEL=${{ vars.GEMINI_MODEL || 'gemini-2.0-flash-exp' }}" \
@@ -761,7 +761,7 @@ jobs:
             print(f"  - Description: {agent['description']}")
             print(f"  - Resources: {agent['cpu']}/{agent['memory']}")
             print(f"  - Scaling: {agent['min_instances']}-{agent['max_instances']} instances")
-            print(f"  - Port: {agent['port']}")
+            # print(f"  - Port: {agent['port']}")
             print("")
         
         print("### Configuration Management")
