@@ -77,14 +77,39 @@ jobs:
         # Make validator executable
         chmod +x scripts/validate-config.py
         
-        # Run validation in JSON mode
-        python scripts/validate-config.py --json > validation_result.json
+        # Run validation in JSON mode and check output
+        if python scripts/validate-config.py --json > validation_result.json; then
+          echo "JSON validation completed"
+        else
+          echo "JSON validation failed"
+          exit 1
+        fi
         
-        # Display results
+        # Check if JSON file was created and has content
+        if [ ! -s validation_result.json ]; then
+          echo "JSON output file is empty, running validation in text mode..."
+          python scripts/validate-config.py
+          echo "Validation completed but JSON output failed"
+          exit 1
+        fi
+        
+        # Display results in text mode for readability
+        echo "Displaying validation results:"
         python scripts/validate-config.py
         
-        # Check if validation passed
-        VALID=$(cat validation_result.json | python -c "import sys, json; print(json.load(sys.stdin)['valid'])")
+        # Check if validation passed using Python instead of jq
+        VALID=$(python3 -c "
+        import json
+        try:
+            with open('validation_result.json') as f:
+                result = json.load(f)
+            print(result.get('valid', False))
+        except Exception as e:
+            print(f'Error reading JSON: {e}')
+            print(False)
+        ")
+        
+        echo "Validation result: $VALID"
         
         if [ "$VALID" != "True" ]; then
           echo "Configuration validation FAILED!"
