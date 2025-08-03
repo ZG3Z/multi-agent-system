@@ -1,19 +1,15 @@
-# .github/configs/agents.yaml
-# Practical agent configuration - focused on cost optimization
-
 agents:
   - name: crewai-agent
     service: crewai-agent
     port: 8080
     description: "CrewAI research and analysis agent"
     resources:
-      # Tylko prod środowisko - zero kosztów gdy nie używane
       prod:
-        cpu: "1"           # Minimum CPU dla kosztów
-        memory: "512Mi"       # Minimum memory
-        min_instances: 0      # Zero kosztów bez ruchu
-        max_instances: 1      # Jedna instancja wystarczy na start
-        concurrency: 80      # Więcej requestów na instancję = mniej instancji
+        cpu: "1"           
+        memory: "512Mi"       
+        min_instances: 0      
+        max_instances: 1      
+        concurrency: 80      
 
   - name: langraph-agent
     service: langraph-agent
@@ -39,19 +35,16 @@ agents:
         max_instances: 1      
         concurrency: 80      
 
-# Globalne ustawienia - zoptymalizowane pod koszty
 global:
-  timeout: 120              # Krótszy timeout = mniej kosztów
-  execution_environment: "gen2"  # Szybszy cold start
-  cpu_boost: true           # Szybsze skalowanie = krótsze wykonanie
+  timeout: 120              
+  execution_environment: "gen2"  
+  cpu_boost: true           
 
-# Tylko prod - bez dev/staging
 environments:
   prod:
-    suffix: ""              # Bez sufiksu - prostsze nazwy
+    suffix: ""              
     cost_optimized: true
 
-# Minimalne etykiety
 labels:
   managed-by: "github-actions"
   cost-optimized: "true"

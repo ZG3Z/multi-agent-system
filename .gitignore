@@ -1,5 +1,6 @@
 # Environment variables
 .env
+load-testing-suite
 
 # Python
 __pycache__/

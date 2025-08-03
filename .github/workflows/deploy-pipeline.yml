@@ -1,4 +1,4 @@
-name: Multi-Agent Pipeline
+name: Agents Deployment Pipeline
 
 on:
   workflow_dispatch:
@@ -34,7 +34,7 @@ on:
         default: false
         type: boolean
       environment:
-        description: 'Target environment (only prod available)'
+        description: 'Target environment'
         required: true
         default: 'prod'
         type: choice
@@ -48,7 +48,7 @@ env:
   ARTIFACT_REPO: ${{ vars.ARTIFACT_REPO_NAME }}
 
 jobs:
-  # Validate configuration first - MUST pass before anything else
+  # Validate configuration
   validate-config:
     name: Validate Configuration
     runs-on: ubuntu-latest
@@ -74,7 +74,6 @@ jobs:
       run: |
         echo "Validating agents configuration..."
         
-        # Simple YAML validation with Python
         python3 << 'EOF'
         import yaml
         import os
@@ -183,11 +182,10 @@ jobs:
         
         # Extract agents for matrix
         agents = []
-        # Tylko prod środowisko
         environment = 'prod'
         
         for agent in config['agents']:
-            # Get prod resources (uproszczone - tylko prod)
+            # Get prod resources 
             resources = agent['resources']['prod']
             
             agent_config = {
@@ -203,7 +201,7 @@ jobs:
             }
             agents.append(agent_config)
         
-        # Global configuration (uproszczone)
+        # Global configuration 
         global_config = {
             'timeout': config['global']['timeout'],
             'execution_environment': config['global']['execution_environment'],
@@ -290,14 +288,9 @@ jobs:
             
             print("")
             print(f"**Total agents:** {len(config['agents'])}")
-            print("")
-            print("### Cost Optimization")
-            print("- `min_instances: 0` = Zero cost when idle")
-            print("- Minimal resources = Ultra-low cost")
-            print("- Smart concurrency = Fewer instances needed")
         SUMMARY_EOF
 
-  # Code quality checks - depends on validation
+  # Code quality checks 
   code-quality:
     name: Code Quality Checks
     runs-on: ubuntu-latest
@@ -334,7 +327,7 @@ jobs:
         echo "Checking import sorting..."
         isort --check-only --diff agents/ || echo "Import sorting issues found"
 
-  # Unit tests - depends on validation
+  # Unit tests 
   unit-tests:
     name: Unit Tests
     runs-on: ubuntu-latest
@@ -378,7 +371,7 @@ jobs:
           python -m pytest tests/unit/ -v --tb=short -k "${{ matrix.agent.name }}" || true
         fi
 
-  # Build and push images - depends on validation
+  # Build and push images 
   build-and-push:
     name: Build and Push Images
     runs-on: ubuntu-latest
@@ -474,9 +467,7 @@ jobs:
         
         echo "Successfully built and pushed ${{ matrix.agent.name }}"
 
-  # Deploy to Cloud Run - depends on validation
-# Change to the deploy-to-cloud-run job in .github/workflows/multi-agent-pipeline.yml
-
+# Deploy to Cloud Run 
   deploy-to-cloud-run:
     name: Deploy to Cloud Run
     runs-on: ubuntu-latest
@@ -575,14 +566,6 @@ jobs:
       run: |
         SERVICE_NAME="${{ matrix.agent.service }}${{ fromJson(needs.validate-config.outputs.global-config).environment_suffix }}"
         URL=$(gcloud run services describe ${SERVICE_NAME} --region ${{ env.REGION }} --format 'value(status.url)')
-        
-        echo "### ${{ matrix.agent.service }} deployed!" >> $GITHUB_STEP_SUMMARY
-        echo "- **Agent**: ${{ matrix.agent.name }}" >> $GITHUB_STEP_SUMMARY
-        echo "- **Description**: ${{ matrix.agent.description }}" >> $GITHUB_STEP_SUMMARY
-        echo "- **URL**: ${URL}" >> $GITHUB_STEP_SUMMARY
-        echo "- **Resources**: ${{ matrix.agent.cpu }}/${{ matrix.agent.memory }}" >> $GITHUB_STEP_SUMMARY
-        echo "- **Scaling**: ${{ matrix.agent.min_instances }}-${{ matrix.agent.max_instances }} instances" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
         
         # Test health endpoint
         echo "Testing service health..."
@@ -734,10 +717,9 @@ jobs:
     steps:
     - name: Generate deployment summary
       run: |
-        echo "## Multi-Agent Deployment Summary" >> $GITHUB_STEP_SUMMARY
+        echo "## Agents Deployment Summary" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "**Environment:** ${{ github.event.inputs.environment }}" >> $GITHUB_STEP_SUMMARY
-        echo "**Git SHA:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
         echo "**Region:** ${{ env.REGION }}" >> $GITHUB_STEP_SUMMARY
         echo "**Project:** ${{ env.PROJECT_ID }}" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
@@ -766,11 +748,6 @@ jobs:
             print(f"  - Port: {agent['port']}")
             print("")
         
-        print("### Configuration Management")
-        print("- **Universal**: Add/remove agents in `.github/configs/agents.yaml`")
-        print("- **Environment-specific**: Different resources per environment")
-        print("- **Auto-discovery**: Services tagged for automated testing")
-        print("- **Cost-optimized**: Resources tuned per environment")
         EOF
       env:
         AGENTS: ${{ needs.validate-config.outputs.agents }}

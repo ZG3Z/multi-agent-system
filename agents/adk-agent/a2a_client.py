@@ -1,8 +1,5 @@
 """
-Universal A2A (Agent-to-Agent) Communication Client
-
-Single-file implementation for easy copying between agents.
-Designed to be Cloud Run friendly with zero external dependencies.
+A2A Communication Client
 """
 
 import asyncio
@@ -16,7 +13,7 @@ from enum import Enum
 
 # A2A Protocol Definitions
 class A2AMessageType(str, Enum):
-    """Standard A2A message types"""
+    """A2A message types"""
     HEALTH_CHECK = "health_check"
     GET_CAPABILITIES = "get_capabilities"
     EXECUTE_TASK = "execute_task"
@@ -24,7 +21,7 @@ class A2AMessageType(str, Enum):
     SHARE_CONTEXT = "share_context"
 
 class A2AMessage(BaseModel):
-    """Universal A2A message format"""
+    """A2A message format"""
     message_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     message_type: A2AMessageType
     sender_id: str
@@ -34,7 +31,7 @@ class A2AMessage(BaseModel):
     correlation_id: Optional[str] = None
 
 class A2AResponse(BaseModel):
-    """Standard A2A response format"""
+    """A2A response format"""
     success: bool
     message_id: str
     sender_id: str
@@ -43,7 +40,7 @@ class A2AResponse(BaseModel):
     error: Optional[str] = None
 
 class A2AClient:
-    """Universal A2A communication client"""
+    """A2A communication client"""
     
     def __init__(self, agent_id: str, agent_type: str):
         """
