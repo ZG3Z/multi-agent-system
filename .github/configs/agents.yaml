@@ -3,8 +3,8 @@
 
 agents:
   - name: crewai-agent
-    service: gemini-agent
-    # port: 8081
+    service: crewai-agent
+    port: 8080
     description: "Gemini-powered research and analysis agent"
     resources:
       # Tylko prod środowisko - zero kosztów gdy nie używane
@@ -17,7 +17,7 @@ agents:
 
   - name: langraph-agent
     service: langraph-agent
-    # port: 8082
+    port: 8082
     description: "LangGraph decision-making and workflow agent"
     resources:
       prod:
@@ -29,7 +29,7 @@ agents:
 
   - name: adk-agent
     service: adk-agent
-    # port: 8083
+    port: 8083
     description: "ADK data processing and analysis agent"
     resources:
       prod:

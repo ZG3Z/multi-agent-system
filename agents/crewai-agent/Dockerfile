@@ -16,7 +16,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 # Expose port
-# EXPOSE 8080
+EXPOSE 8080
 
 # Health check - disabled temporarily for debugging
 # HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
