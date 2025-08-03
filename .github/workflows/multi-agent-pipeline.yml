@@ -515,10 +515,10 @@ jobs:
         echo "Testing service health..."
         for i in {1..5}; do
           if curl -sf "${URL}/health"; then
-            echo "Service is healthy" >> $GITHUB_STEP_SUMMARY
+            echo "✅ Service is healthy" >> $GITHUB_STEP_SUMMARY
             break
           else
-            echo "Waiting for service... ($i/5)"
+            echo "⏳ Waiting for service... ($i/5)"
             sleep 20
           fi
         done
