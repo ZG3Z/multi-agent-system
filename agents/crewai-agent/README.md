@@ -1,6 +1,6 @@
-# Gemini AI Agent
+# CrewAI AI Agent
 
-Gemini-powered agent with standardized API interface, ready for A2A communication.
+CrewAI agent with standardized API interface, ready for A2A communication.
 
 ## Features
 

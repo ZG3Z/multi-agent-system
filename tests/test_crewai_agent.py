@@ -1,5 +1,5 @@
 """
-Individual test for Gemini (CrewAI) Agent
+Individual test for CrewAI Agent
 
 Usage:
     python tests/test_crewai_agent.py

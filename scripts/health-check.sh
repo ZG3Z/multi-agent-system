@@ -4,7 +4,7 @@
 echo "Running health checks..."
 
 services=(
-    "8080:Gemini"
+    "8080:CrewAI"
     "8082:LangGraph"
     "8083:ADK"
 )

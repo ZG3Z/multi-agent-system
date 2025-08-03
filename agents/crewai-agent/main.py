@@ -32,7 +32,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="CrewAI Agent with A2A",
-    description="Gemini-powered agent with A2A communication capabilities",
+    description="CrewAI agent with A2A communication capabilities",
     version="1.0.0",
     lifespan=lifespan
 )

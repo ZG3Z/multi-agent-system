@@ -87,7 +87,7 @@ class TestResearchTask:
             assert "findings" in result["result"]
             assert "summary" in result["result"]
             assert "sources" in result["result"]
-            assert result["result"]["sources"] == ["Gemini AI Research"]
+            assert result["result"]["sources"] == ["CrewAI AI Research"]
     
     @pytest.mark.asyncio
     async def test_research_task_with_context(self, crewai_logic):

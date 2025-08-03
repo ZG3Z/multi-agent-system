@@ -20,12 +20,12 @@ while [[ $# -gt 0 ]]; do
             FOLLOW="-f"
             shift
             ;;
-        gemini|langraph|adk)
+        crewai|langraph|adk)
             AGENT="$1-agent"
             shift
             ;;
         *)
-            echo "Usage: $0 [gemini|langraph|adk] [-f|--follow]"
+            echo "Usage: $0 [crewai|langraph|adk] [-f|--follow]"
             echo ""
             echo "Examples:"
             echo "$0                    # Show logs for all agents"

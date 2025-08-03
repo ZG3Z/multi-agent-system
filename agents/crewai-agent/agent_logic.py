@@ -140,7 +140,7 @@ class CrewAILogic:
         return {
             "findings": [content],
             "summary": f"Research completed on: {description}",
-            "sources": ["Gemini AI Research"],
+            "sources": ["CrewAI AI Research"],
             "raw_output": content
         }
     
@@ -170,7 +170,7 @@ class CrewAILogic:
         
         return {
             "analysis": content,
-            "insights": ["Analysis completed using Gemini AI"],
+            "insights": ["Analysis completed using CrewAI AI"],
             "recommendations": ["Review detailed analysis for actionable items"],
             "raw_output": content
         }

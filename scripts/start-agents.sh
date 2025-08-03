@@ -32,7 +32,7 @@ sleep 10
 
 # Check agent health
 echo "Checking agent health..."
-agents=("gemini-agent:8080" "langraph-agent:8082" "adk-agent:8083")
+agents=("crewai-agent:8080" "langraph-agent:8082" "adk-agent:8083")
 
 for agent_info in "${agents[@]}"; do
     agent_name=$(echo $agent_info | cut -d: -f1)

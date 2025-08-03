@@ -4,7 +4,7 @@
 echo "Waiting for services to be ready..."
 
 services=(
-    "localhost:8080:Gemini"
+    "localhost:8080:CrewAI"
     "localhost:8082:LangGraph" 
     "localhost:8083:ADK"
 )

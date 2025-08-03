@@ -136,8 +136,8 @@ test-ci-env:
 	@make stop
 
 # Development helpers
-dev-gemini:
-	@docker-compose logs -f gemini-agent
+dev-crewai:
+	@docker-compose logs -f crewai-agent
 
 dev-langraph:
 	@docker-compose logs -f langraph-agent

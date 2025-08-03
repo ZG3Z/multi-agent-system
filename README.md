@@ -6,7 +6,7 @@ Enterprise-grade multi-agent system with Agent-to-Agent (A2A) communication prot
 
 ```
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   Gemini Agent  │◄──►│  LangGraph      │◄──►│   ADK Agent     │
+│   CrewAI Agent  │◄──►│  LangGraph      │◄──►│   ADK Agent     │
 │   (Research)    │    │  Agent          │    │   (Data Proc.)  │
 │   Port: 8080    │    │  (Decisions)    │    │   Port: 8083    │
 │                 │    │  Port: 8082     │    │                 │
@@ -64,7 +64,7 @@ GOOGLE_API_KEY=your-google-api-key-here
 
 ## 🎯 Agent Capabilities
 
-### Gemini Agent (Port 8080)
+### CrewAI Agent (Port 8080)
 - **Research**: Comprehensive topic research and information gathering
 - **Analysis**: Data analysis and insight generation
 - **Planning**: Strategic planning and roadmap creation
@@ -96,7 +96,7 @@ GOOGLE_API_KEY=your-google-api-key-here
 
 # View logs
 ./scripts/logs.sh                 # All agents
-./scripts/logs.sh gemini          # Specific agent
+./scripts/logs.sh crewai          # Specific agent
 ./scripts/logs.sh langraph -f     # Follow logs
 ```
 
@@ -171,7 +171,7 @@ curl http://localhost:8083/health
 docker-compose logs -f
 
 # Logs for specific agent
-docker-compose logs -f gemini-agent
+docker-compose logs -f crewai-agent
 docker-compose logs -f langraph-agent
 docker-compose logs -f adk-agent
 ```
@@ -181,7 +181,7 @@ docker-compose logs -f adk-agent
 ### Project Structure
 ```
 ├── agents/
-│   ├── crewai-agent/          # Gemini research agent
+│   ├── crewai-agent/          # CrewAI research agent
 │   ├── langraph-agent/        # LangGraph decision agent  
 │   └── adk-agent/             # ADK data processing agent
 ├── tests/
