@@ -189,25 +189,11 @@ jobs:
             print("- Smart concurrency = Fewer instances needed")
         EOF >> $GITHUB_STEP_SUMMARY
 
-  # Load agent configuration - NOW DEPENDS ON VALIDATION
-  load-config:
-    name: Load Agent Configuration  
-    runs-on: ubuntu-latest
-    needs: validate-config  # Must pass validation first
-    outputs:
-      agents: ${{ needs.validate-config.outputs.agents }}
-      global-config: ${{ needs.validate-config.outputs.global-config }}
-    steps:
-    - name: Configuration loaded from validation step
-      run: |
-        echo "Using validated configuration"
-        echo "Agents: ${{ needs.validate-config.outputs.agents }}"
-
-  # Existing code quality job (unchanged)
+  # Code quality checks - depends on validation
   code-quality:
     name: Code Quality Checks
     runs-on: ubuntu-latest
-    needs: validate-config  # Must pass validation first
+    needs: validate-config
     if: github.event.inputs.run_code_quality == 'true'
     
     steps:
@@ -239,35 +225,8 @@ jobs:
       run: |
         echo "Checking import sorting..."
         isort --check-only --diff agents/ || echo "Import sorting issues found"
-        
-            - name: Validate agents configuration
-      run: |
-        echo "Validating agents.yaml configuration..."
-        python3 << 'EOF'
-        import yaml
-        
-        try:
-            with open('.github/configs/agents.yaml', 'r') as f:
-                config = yaml.safe_load(f)
-            
-            # Validate required fields
-            assert 'agents' in config
-            assert 'global' in config
-            assert 'environments' in config
-            
-            for agent in config['agents']:
-                assert all(field in agent for field in ['name', 'service', 'port', 'resources'])
-                assert 'prod' in agent['resources']  # Tylko prod wymagane
-            
-            print("agents.yaml configuration is valid")
-            print(f"Found {len(config['agents'])} agents configured")
-            
-        except Exception as e:
-            print(f"Configuration validation failed: {e}")
-            exit(1)
-        EOF
 
-  # Dynamic unit tests based on discovered agents
+  # Unit tests - depends on validation
   unit-tests:
     name: Unit Tests
     runs-on: ubuntu-latest
@@ -311,7 +270,7 @@ jobs:
           python -m pytest tests/unit/ -v --tb=short -k "${{ matrix.agent.name }}" || true
         fi
 
-  # Dynamic build based on configuration
+  # Build and push images - depends on validation
   build-and-push:
     name: Build and Push Images
     runs-on: ubuntu-latest
@@ -405,7 +364,7 @@ jobs:
         
         echo "Successfully built and pushed ${{ matrix.agent.name }}"
 
-  # Dynamic deployment based on configuration
+  # Deploy to Cloud Run - depends on validation
   deploy-to-cloud-run:
     name: Deploy to Cloud Run
     runs-on: ubuntu-latest
@@ -500,10 +459,10 @@ jobs:
           
     - name: Get service URL and test
       run: |
-        SERVICE_NAME="${{ matrix.agent.service }}${{ fromJson(needs.load-config.outputs.global-config).environment_suffix }}"
+        SERVICE_NAME="${{ matrix.agent.service }}${{ fromJson(needs.validate-config.outputs.global-config).environment_suffix }}"
         URL=$(gcloud run services describe ${SERVICE_NAME} --region ${{ env.REGION }} --format 'value(status.url)')
         
-        echo "### 🚀 ${{ matrix.agent.service }} deployed!" >> $GITHUB_STEP_SUMMARY
+        echo "### ${{ matrix.agent.service }} deployed!" >> $GITHUB_STEP_SUMMARY
         echo "- **Agent**: ${{ matrix.agent.name }}" >> $GITHUB_STEP_SUMMARY
         echo "- **Description**: ${{ matrix.agent.description }}" >> $GITHUB_STEP_SUMMARY
         echo "- **URL**: ${URL}" >> $GITHUB_STEP_SUMMARY
@@ -515,15 +474,15 @@ jobs:
         echo "Testing service health..."
         for i in {1..5}; do
           if curl -sf "${URL}/health"; then
-            echo "✅ Service is healthy" >> $GITHUB_STEP_SUMMARY
+            echo "Service is healthy" >> $GITHUB_STEP_SUMMARY
             break
           else
-            echo "⏳ Waiting for service... ($i/5)"
+            echo "Waiting for service... ($i/5)"
             sleep 20
           fi
         done
 
-  # Universal integration tests
+  # Integration tests
   integration-tests:
     name: Integration Tests
     runs-on: ubuntu-latest
@@ -560,37 +519,6 @@ jobs:
         
         echo "Discovering services for environment: ${{ github.event.inputs.environment }}"
         
-        # Get all deployed services with auto-discovery label
-        SERVICES=$(gcloud run services list \
-          --region=${{ env.REGION }} \
-          --filter="metadata.labels.environment=${{ github.event.inputs.environment }} AND metadata.labels.auto-discovery=enabled" \
-          --format="json")
-        
-        # Create service URLs mapping
-        python3 << 'EOF'
-        import json
-        import os
-        
-        services_json = '''${{ needs.validate-config.outputs.agents }}'''
-        services = json.loads(services_json)
-        
-        env_suffix = os.environ.get('ENV_SUFFIX', '')
-        
-        # Create URLs for discovered agents
-        urls = {}
-        for agent in services:
-            service_name = f"{agent['service']}{env_suffix}"
-            # In real scenario, get actual URL from gcloud
-            urls[agent['name']] = f"https://{service_name}-hash.a.run.app"
-        
-        with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
-            f.write(f"service-urls={json.dumps(urls)}\n")
-            
-        print("Discovered services:")
-        for name, url in urls.items():
-            print(f"  {name}: {url}")
-        EOF
-        
         # Get actual URLs from deployed services
         python3 << 'EOF'
         import subprocess
@@ -598,7 +526,7 @@ jobs:
         import os
         
         agents = json.loads('''${{ needs.validate-config.outputs.agents }}''')
-        env_suffix = "${{ fromJson(needs.load-config.outputs.global-config).environment_suffix }}"
+        env_suffix = "${{ fromJson(needs.validate-config.outputs.global-config).environment_suffix }}"
         
         urls = {}
         for agent in agents:
@@ -622,7 +550,7 @@ jobs:
             f.write(f"actual-urls={json.dumps(urls)}\n")
         EOF
       env:
-        ENV_SUFFIX: ${{ fromJson(needs.load-config.outputs.global-config).environment_suffix }}
+        ENV_SUFFIX: ${{ fromJson(needs.validate-config.outputs.global-config).environment_suffix }}
         
     - name: Test all deployed services
       run: |
@@ -682,7 +610,7 @@ jobs:
       env:
         URLS: ${{ steps.discover.outputs.actual-urls }}
 
-  # Dynamic summary
+  # Deployment summary
   deployment-summary:
     name: Deployment Summary
     runs-on: ubuntu-latest
