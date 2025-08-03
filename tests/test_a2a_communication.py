@@ -14,7 +14,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '../agents/crewai-agent'
 from a2a_client import A2AClient, A2AMessage, A2AMessageType
 
 # Agent URLs - update these based on running agents
-GEMINI_AGENT_URL = "http://localhost:8080"
+CREWAI_AGENT_URL = "http://localhost:8080"
 LANGRAPH_AGENT_URL = "http://localhost:8082"
 ADK_AGENT_URL = "http://localhost:8083"
 
@@ -25,7 +25,7 @@ async def test_health_checks():
     client = A2AClient("test-client", "test")
     
     agents = {
-        "Gemini": GEMINI_AGENT_URL,
+        "CrewAI": CREWAI_AGENT_URL,
         "LangGraph": LANGRAPH_AGENT_URL,
         "ADK": ADK_AGENT_URL
     }
@@ -51,7 +51,7 @@ async def test_capabilities_discovery():
     client = A2AClient("test-client", "test")
     
     agents = {
-        "Gemini": GEMINI_AGENT_URL,
+        "CrewAI": CREWAI_AGENT_URL,
         "LangGraph": LANGRAPH_AGENT_URL,
         "ADK": ADK_AGENT_URL
     }
@@ -77,8 +77,8 @@ async def test_basic_task_delegation():
     
     client = A2AClient("test-client", "test")
     
-    # Test 1: Ask Gemini agent to execute a research task
-    print("  Test 1: Research task to Gemini agent")
+    # Test 1: Ask CrewAI agent to execute a research task
+    print("  Test 1: Research task to CrewAI agent")
     task_data = {
         "task_type": "research",
         "description": "Test research task",
@@ -86,7 +86,7 @@ async def test_basic_task_delegation():
     }
     
     try:
-        response = await client.execute_task(GEMINI_AGENT_URL, task_data)
+        response = await client.execute_task(CREWAI_AGENT_URL, task_data)
         if response.success:
             task_result = response.payload.get("task_result", {})
             print(f"    Research task completed: {task_result.get('success', False)}")

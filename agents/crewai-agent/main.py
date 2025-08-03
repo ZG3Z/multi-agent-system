@@ -25,13 +25,13 @@ async def lifespan(app: FastAPI):
     agent_logic = CrewAILogic()
     a2a_client = A2AClient(Config.AGENT_ID, Config.AGENT_TYPE)
     a2a_handler = A2AMessageHandler(Config.AGENT_ID, Config.AGENT_TYPE)
-    logging.info(f"Gemini Agent with A2A started on {Config.HOST}:{Config.PORT}")
+    logging.info(f"CrewAI Agent with A2A started on {Config.HOST}:{Config.PORT}")
     yield
     # Shutdown
-    logging.info("Gemini Agent shutting down")
+    logging.info("CrewAI shutting down")
 
 app = FastAPI(
-    title="Gemini Agent with A2A",
+    title="CrewAI Agent with A2A",
     description="Gemini-powered agent with A2A communication capabilities",
     version="1.0.0",
     lifespan=lifespan

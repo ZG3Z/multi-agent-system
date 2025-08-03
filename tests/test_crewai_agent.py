@@ -90,8 +90,8 @@ async def test_analysis_task():
         print()
 
 async def main():
-    """Run all Gemini Agent tests"""
-    print("Starting Gemini Agent Individual Tests\n")
+    """Run all CrewAI Agent tests"""
+    print("Starting CrewAI Agent Individual Tests\n")
     
     try:
         await test_health()
@@ -99,10 +99,10 @@ async def main():
         await test_research_task()
         await test_analysis_task()
         
-        print("Gemini Agent tests completed!")
+        print("CrewAI Agent tests completed!")
         
     except httpx.ConnectError:
-        print("Cannot connect to Gemini Agent. Make sure it's running on localhost:8080")
+        print("Cannot connect to CrewAI Agent. Make sure it's running on localhost:8080")
     except Exception as e:
         print(f"Test failed: {e}")
 

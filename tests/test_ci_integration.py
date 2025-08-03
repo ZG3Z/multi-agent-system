@@ -72,7 +72,7 @@ class TestBasicTaskExecution:
     """Test basic task execution without real API keys"""
     
     async def test_gemini_agent_task_fails_gracefully(self):
-        """Test that Gemini agent fails gracefully with fake API key"""
+        """Test that CrewAI agent fails gracefully with fake API key"""
         task_request = {
             "task_type": "research",
             "description": "Test research task",
