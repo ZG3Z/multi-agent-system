@@ -16,11 +16,11 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 # Expose port
-EXPOSE 8080
+# EXPOSE 8080
 
 # Health check - disabled temporarily for debugging
 # HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
 #     CMD curl -f http://localhost:8081/health || exit 1
 
 # Run the application with debug info
-CMD ["sh", "-c", "echo 'Starting agent...' && echo 'GOOGLE_API_KEY set:' ${GOOGLE_API_KEY:+yes} ${GOOGLE_API_KEY:-no} && python main.py"]
+CMD ["python", "main.py", "--host", "0.0.0.0", "--port", "8080"]

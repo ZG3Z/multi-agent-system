@@ -5,7 +5,7 @@ agents:
   - name: crewai-agent
     service: crewai-agent
     port: 8080
-    description: "Gemini-powered research and analysis agent"
+    description: "CrewAI research and analysis agent"
     resources:
       # Tylko prod środowisko - zero kosztów gdy nie używane
       prod:
