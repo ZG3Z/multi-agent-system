@@ -1,0 +1,57 @@
+# .github/configs/agents.yaml
+# Practical agent configuration - focused on cost optimization
+
+agents:
+  - name: crewai-agent
+    service: gemini-agent
+    port: 8080
+    description: "Gemini-powered research and analysis agent"
+    resources:
+      # Tylko prod środowisko - zero kosztów gdy nie używane
+      prod:
+        cpu: "0.25"           # Minimum CPU dla kosztów
+        memory: "512Mi"       # Minimum memory
+        min_instances: 0      # Zero kosztów bez ruchu
+        max_instances: 1      # Jedna instancja wystarczy na start
+        concurrency: 50      # Więcej requestów na instancję = mniej instancji
+
+  - name: langraph-agent
+    service: langraph-agent
+    port: 8082
+    description: "LangGraph decision-making and workflow agent"
+    resources:
+      prod:
+        cpu: "0.25"
+        memory: "512Mi"
+        min_instances: 0
+        max_instances: 1
+        concurrency: 50
+
+  - name: adk-agent
+    service: adk-agent
+    port: 8083
+    description: "ADK data processing and analysis agent"
+    resources:
+      prod:
+        cpu: "0.5"            # Trochę więcej dla przetwarzania danych
+        memory: "1Gi"         # Więcej RAM dla DataFrames
+        min_instances: 0
+        max_instances: 2      # Może potrzebować więcej przy większych danych
+        concurrency: 20      # Mniej concurrent requests dla data processing
+
+# Globalne ustawienia - zoptymalizowane pod koszty
+global:
+  timeout: 120              # Krótszy timeout = mniej kosztów
+  execution_environment: "gen2"  # Szybszy cold start
+  cpu_boost: true           # Szybsze skalowanie = krótsze wykonanie
+
+# Tylko prod - bez dev/staging
+environments:
+  prod:
+    suffix: ""              # Bez sufiksu - prostsze nazwy
+    cost_optimized: true
+
+# Minimalne etykiety
+labels:
+  managed-by: "github-actions"
+  cost-optimized: "true"

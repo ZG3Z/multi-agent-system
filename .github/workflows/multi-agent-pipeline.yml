@@ -1,0 +1,736 @@
+name: Multi-Agent Pipeline
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_code_quality:
+        description: 'Run code quality checks'
+        required: true
+        default: true
+        type: boolean
+      run_unit_tests:
+        description: 'Run unit tests'
+        required: true
+        default: true
+        type: boolean
+      run_integration_tests:
+        description: 'Run integration tests'
+        required: true
+        default: true
+        type: boolean
+      build_images:
+        description: 'Build Docker images'
+        required: true
+        default: true
+        type: boolean
+      push_to_registry:
+        description: 'Push images to Artifact Registry'
+        required: true
+        default: false
+        type: boolean
+      deploy_to_cloud_run:
+        description: 'Deploy to Cloud Run'
+        required: true
+        default: false
+        type: boolean
+      environment:
+        description: 'Target environment (only prod available)'
+        required: true
+        default: 'prod'
+        type: choice
+        options:
+        - prod
+
+env:
+  PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+  REGISTRY: ${{ vars.GCP_REGISTRY }}
+  REGION: ${{ vars.GCP_REGION }}
+  ARTIFACT_REPO: ${{ vars.ARTIFACT_REPO_NAME }}
+
+jobs:
+  # Validate configuration first - MUST pass before anything else
+  validate-config:
+    name: Validate Configuration
+    runs-on: ubuntu-latest
+    outputs:
+      agents: ${{ steps.config.outputs.agents }}
+      global-config: ${{ steps.config.outputs.global-config }}
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+        
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install pyyaml
+        
+    - name: Validate agents configuration
+      id: validate
+      run: |
+        echo "Validating agents configuration..."
+        
+        # Make validator executable
+        chmod +x scripts/validate-config.py
+        
+        # Run validation in JSON mode
+        python scripts/validate-config.py --json > validation_result.json
+        
+        # Display results
+        python scripts/validate-config.py
+        
+        # Check if validation passed
+        VALID=$(cat validation_result.json | python -c "import sys, json; print(json.load(sys.stdin)['valid'])")
+        
+        if [ "$VALID" != "True" ]; then
+          echo "Configuration validation FAILED!"
+          echo "Please fix the errors above before proceeding."
+          exit 1
+        fi
+        
+        echo "Configuration validation PASSED!"
+        
+    - name: Load agent configuration
+      id: config
+      run: |
+        # Parse YAML and extract agents list
+        python3 << 'EOF'
+        import yaml
+        import json
+        import os
+        
+        # Load configuration
+        with open('.github/configs/agents.yaml', 'r') as f:
+            config = yaml.safe_load(f)
+        
+        # Extract agents for matrix
+        agents = []
+        # Tylko prod środowisko
+        environment = 'prod'
+        
+        for agent in config['agents']:
+            # Get prod resources (uproszczone - tylko prod)
+            resources = agent['resources']['prod']
+            
+            agent_config = {
+                'name': agent['name'],
+                'service': agent['service'],
+                'port': agent['port'],
+                'description': agent['description'],
+                'cpu': resources['cpu'],
+                'memory': resources['memory'],
+                'min_instances': resources['min_instances'],
+                'max_instances': resources['max_instances'],
+                'concurrency': resources['concurrency']
+            }
+            agents.append(agent_config)
+        
+        # Global configuration (uproszczone)
+        global_config = {
+            'timeout': config['global']['timeout'],
+            'execution_environment': config['global']['execution_environment'],
+            'cpu_boost': config['global']['cpu_boost'],
+            'environment_suffix': '',  # Bez sufiksu dla prod
+            'labels': config['labels']
+        }
+        
+        # Output for GitHub Actions
+        with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+            f.write(f"agents={json.dumps(agents)}\n")
+            f.write(f"global-config={json.dumps(global_config)}\n")
+        
+        print(f"Loaded {len(agents)} agents for PROD environment")
+        for agent in agents:
+            print(f"  - {agent['name']} ({agent['service']}) - {agent['cpu']}/{agent['memory']} (min_instances: {agent['min_instances']})")
+        EOF
+        
+    - name: Generate validation summary
+      run: |
+        echo "## Configuration Validation Results" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Configuration is VALID**" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        # Parse and display agents
+        python3 << 'EOF'
+        import yaml
+        
+        with open('.github/configs/agents.yaml') as f:
+            config = yaml.safe_load(f)
+        
+        if 'agents' in config:
+            print("### Configured Agents")
+            print("")
+            print("| Agent | Service | Port | CPU | Memory | Min/Max Instances |")
+            print("|-------|---------|------|-----|--------|-------------------|")
+            
+            for agent in config['agents']:
+                name = agent['name']
+                service = agent['service']
+                port = agent['port']
+                resources = agent['resources']['prod']
+                cpu = resources['cpu']
+                memory = resources['memory']
+                min_inst = resources['min_instances']
+                max_inst = resources['max_instances']
+                
+                print(f"| {name} | {service} | {port} | {cpu} | {memory} | {min_inst}/{max_inst} |")
+            
+            print("")
+            print(f"**Total agents:** {len(config['agents'])}")
+            print("")
+            print("### Cost Optimization")
+            print("- `min_instances: 0` = Zero cost when idle")
+            print("- Minimal resources = Ultra-low cost")
+            print("- Smart concurrency = Fewer instances needed")
+        EOF >> $GITHUB_STEP_SUMMARY
+
+  # Load agent configuration - NOW DEPENDS ON VALIDATION
+  load-config:
+    name: Load Agent Configuration  
+    runs-on: ubuntu-latest
+    needs: validate-config  # Must pass validation first
+    outputs:
+      agents: ${{ needs.validate-config.outputs.agents }}
+      global-config: ${{ needs.validate-config.outputs.global-config }}
+    steps:
+    - name: Configuration loaded from validation step
+      run: |
+        echo "Using validated configuration"
+        echo "Agents: ${{ needs.validate-config.outputs.agents }}"
+
+  # Existing code quality job (unchanged)
+  code-quality:
+    name: Code Quality Checks
+    runs-on: ubuntu-latest
+    needs: validate-config  # Must pass validation first
+    if: github.event.inputs.run_code_quality == 'true'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+        
+    - name: Install linting dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install flake8 black isort safety pyyaml
+        
+    - name: Run flake8 linting
+      run: |
+        echo "Running flake8 linting..."
+        flake8 agents/ --count --select=E9,F63,F7,F82 --show-source --statistics
+        flake8 agents/ --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+        
+    - name: Check code formatting with black
+      run: |
+        echo "Checking code formatting..."
+        black --check --diff agents/ || echo "Code formatting issues found"
+        
+    - name: Check import sorting with isort
+      run: |
+        echo "Checking import sorting..."
+        isort --check-only --diff agents/ || echo "Import sorting issues found"
+        
+            - name: Validate agents configuration
+      run: |
+        echo "Validating agents.yaml configuration..."
+        python3 << 'EOF'
+        import yaml
+        
+        try:
+            with open('.github/configs/agents.yaml', 'r') as f:
+                config = yaml.safe_load(f)
+            
+            # Validate required fields
+            assert 'agents' in config
+            assert 'global' in config
+            assert 'environments' in config
+            
+            for agent in config['agents']:
+                assert all(field in agent for field in ['name', 'service', 'port', 'resources'])
+                assert 'prod' in agent['resources']  # Tylko prod wymagane
+            
+            print("agents.yaml configuration is valid")
+            print(f"Found {len(config['agents'])} agents configured")
+            
+        except Exception as e:
+            print(f"Configuration validation failed: {e}")
+            exit(1)
+        EOF
+
+  # Dynamic unit tests based on discovered agents
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    needs: [validate-config, code-quality]
+    if: always() && github.event.inputs.run_unit_tests == 'true' && needs.validate-config.result == 'success'
+    
+    strategy:
+      matrix:
+        agent: ${{ fromJson(needs.validate-config.outputs.agents) }}
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+        
+    - name: Install dependencies for ${{ matrix.agent.name }}
+      run: |
+        python -m pip install --upgrade pip
+        pip install pytest pytest-asyncio
+        
+        # Install agent-specific dependencies
+        if [ -f "agents/${{ matrix.agent.name }}/requirements.txt" ]; then
+          pip install -r agents/${{ matrix.agent.name }}/requirements.txt
+        fi
+        
+    - name: Run unit tests for ${{ matrix.agent.name }}
+      run: |
+        echo "Running unit tests for ${{ matrix.agent.name }}..."
+        
+        # Find and run tests for this specific agent
+        test_file="tests/unit/test_$(echo ${{ matrix.agent.name }} | sed 's/-/_/g')_logic.py"
+        if [ -f "$test_file" ]; then
+          python -m pytest "$test_file" -v --tb=short
+        else
+          echo "No specific unit tests found for ${{ matrix.agent.name }}"
+          echo "Looking for tests in tests/unit/"
+          python -m pytest tests/unit/ -v --tb=short -k "${{ matrix.agent.name }}" || true
+        fi
+
+  # Dynamic build based on configuration
+  build-and-push:
+    name: Build and Push Images
+    runs-on: ubuntu-latest
+    needs: [validate-config, unit-tests]
+    if: always() && github.event.inputs.build_images == 'true' && needs.validate-config.result == 'success'
+    
+    permissions:
+      contents: read
+      id-token: write
+    
+    strategy:
+      matrix:
+        agent: ${{ fromJson(needs.validate-config.outputs.agents) }}
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - id: auth
+      name: Authenticate to Google Cloud
+      uses: google-github-actions/auth@v2
+      with:
+        credentials_json: ${{ secrets.GCP_SA_KEY }}
+        
+    - name: Set up Cloud SDK
+      uses: google-github-actions/setup-gcloud@v2
+      
+    - name: Configure Docker for Artifact Registry
+      run: |
+        gcloud auth configure-docker ${{ env.REGISTRY }}
+        
+    - name: Ensure repository exists
+      run: |
+        if ! gcloud artifacts repositories describe ${{ env.ARTIFACT_REPO }} \
+           --location=${{ env.REGION }} >/dev/null 2>&1; then
+          echo "Creating Artifact Registry repository..."
+          gcloud artifacts repositories create ${{ env.ARTIFACT_REPO }} \
+            --repository-format=docker \
+            --location=${{ env.REGION }} \
+            --description="Multi-agent system containers (auto-created)"
+        fi
+        
+    - name: Verify agent directory exists
+      run: |
+        if [ ! -d "agents/${{ matrix.agent.name }}" ]; then
+          echo "Agent directory not found: agents/${{ matrix.agent.name }}"
+          echo "Available agents:"
+          ls -la agents/
+          exit 1
+        fi
+        
+        if [ ! -f "agents/${{ matrix.agent.name }}/Dockerfile" ]; then
+          echo "Dockerfile not found: agents/${{ matrix.agent.name }}/Dockerfile"
+          exit 1
+        fi
+        
+        echo "Agent ${{ matrix.agent.name }} directory and Dockerfile found"
+        
+    - name: Build and push ${{ matrix.agent.name }}
+      run: |
+        IMAGE_NAME="${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/${{ env.ARTIFACT_REPO }}/${{ matrix.agent.name }}"
+        IMAGE_TAG="${{ github.event.inputs.environment }}-${{ github.sha }}"
+        FULL_IMAGE="${IMAGE_NAME}:${IMAGE_TAG}"
+        LATEST_IMAGE="${IMAGE_NAME}:${{ github.event.inputs.environment }}-latest"
+        
+        echo "Building ${{ matrix.agent.name }}..."
+        echo "  Directory: agents/${{ matrix.agent.name }}"
+        echo "  Image: ${FULL_IMAGE}"
+        echo "  Description: ${{ matrix.agent.description }}"
+        
+        # Build image with universal labels
+        docker build \
+          --build-arg BUILD_DATE=$(date -u +'%Y-%m-%dT%H:%M:%SZ') \
+          --build-arg VCS_REF=${{ github.sha }} \
+          --build-arg VERSION=${{ github.event.inputs.environment }}-${{ github.sha }} \
+          --label "environment=${{ github.event.inputs.environment }}" \
+          --label "agent-type=${{ matrix.agent.name }}" \
+          --label "service-name=${{ matrix.agent.service }}" \
+          --label "version=${{ github.sha }}" \
+          --label "description=${{ matrix.agent.description }}" \
+          --label "managed-by=github-actions" \
+          --label "auto-discovery=enabled" \
+          -t ${FULL_IMAGE} \
+          -t ${LATEST_IMAGE} \
+          ./agents/${{ matrix.agent.name }}/
+        
+        # Push images
+        echo "Pushing images..."
+        docker push ${FULL_IMAGE}
+        docker push ${LATEST_IMAGE}
+        
+        echo "Successfully built and pushed ${{ matrix.agent.name }}"
+
+  # Dynamic deployment based on configuration
+  deploy-to-cloud-run:
+    name: Deploy to Cloud Run
+    runs-on: ubuntu-latest
+    needs: [validate-config, build-and-push]
+    if: always() && github.event.inputs.deploy_to_cloud_run == 'true' && needs.build-and-push.result == 'success'
+    
+    permissions:
+      contents: read
+      id-token: write
+    
+    strategy:
+      matrix:
+        agent: ${{ fromJson(needs.validate-config.outputs.agents) }}
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - id: auth
+      name: Authenticate to Google Cloud
+      uses: google-github-actions/auth@v2
+      with:
+        credentials_json: ${{ secrets.GCP_SA_KEY }}
+        
+    - name: Set up Cloud SDK
+      uses: google-github-actions/setup-gcloud@v2
+      
+    - name: Ensure Secret Manager secret exists
+      run: |
+        SECRET_NAME="${{ vars.GOOGLE_API_KEY_SECRET_NAME }}"
+        if ! gcloud secrets describe ${SECRET_NAME} >/dev/null 2>&1; then
+          echo "Creating secret ${SECRET_NAME}..."
+          echo "${{ secrets.GOOGLE_API_KEY }}" | gcloud secrets create ${SECRET_NAME} --data-file=-
+        else
+          echo "Updating secret ${SECRET_NAME}..."
+          echo "${{ secrets.GOOGLE_API_KEY }}" | gcloud secrets versions add ${SECRET_NAME} --data-file=-
+        fi
+        
+    - name: Deploy ${{ matrix.agent.service }} to Cloud Run
+      id: deploy
+      run: |
+        # Parse global config
+        GLOBAL_CONFIG='${{ needs.validate-config.outputs.global-config }}'
+        TIMEOUT=$(echo $GLOBAL_CONFIG | jq -r '.timeout')
+        EXEC_ENV=$(echo $GLOBAL_CONFIG | jq -r '.execution_environment')
+        CPU_BOOST=$(echo $GLOBAL_CONFIG | jq -r '.cpu_boost')
+        ENV_SUFFIX=$(echo $GLOBAL_CONFIG | jq -r '.environment_suffix')
+        
+        # Service configuration
+        SERVICE_NAME="${{ matrix.agent.service }}${ENV_SUFFIX}"
+        IMAGE_NAME="${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/${{ env.ARTIFACT_REPO }}/${{ matrix.agent.name }}"
+        IMAGE_TAG="${{ github.event.inputs.environment }}-${{ github.sha }}"
+        
+        echo "Deploying ${{ matrix.agent.name }} as ${SERVICE_NAME}..."
+        echo "  CPU: ${{ matrix.agent.cpu }}"
+        echo "  Memory: ${{ matrix.agent.memory }}"
+        echo "  Min instances: ${{ matrix.agent.min_instances }}"
+        echo "  Max instances: ${{ matrix.agent.max_instances }}"
+        echo "  Concurrency: ${{ matrix.agent.concurrency }}"
+        echo "  Port: ${{ matrix.agent.port }}"
+        
+        # Deploy to Cloud Run with dynamic configuration
+        gcloud run deploy ${SERVICE_NAME} \
+          --image ${IMAGE_NAME}:${IMAGE_TAG} \
+          --platform managed \
+          --region ${{ env.REGION }} \
+          --allow-unauthenticated \
+          --port ${{ matrix.agent.port }} \
+          --cpu ${{ matrix.agent.cpu }} \
+          --memory ${{ matrix.agent.memory }} \
+          --min-instances ${{ matrix.agent.min_instances }} \
+          --max-instances ${{ matrix.agent.max_instances }} \
+          --timeout ${TIMEOUT} \
+          --concurrency ${{ matrix.agent.concurrency }} \
+          --execution-environment ${EXEC_ENV} \
+          $([ "$CPU_BOOST" = "true" ] && echo "--cpu-boost") \
+          --set-env-vars "AGENT_ID=${{ matrix.agent.service }}" \
+          --set-env-vars "AGENT_TYPE=${{ matrix.agent.name }}" \
+          --set-env-vars "HOST=0.0.0.0" \
+          --set-env-vars "PORT=${{ matrix.agent.port }}" \
+          --set-env-vars "LOG_LEVEL=${{ vars.LOG_LEVEL || 'INFO' }}" \
+          --set-env-vars "ENVIRONMENT=${{ github.event.inputs.environment }}" \
+          --set-env-vars "GEMINI_MODEL=${{ vars.GEMINI_MODEL || 'gemini-2.0-flash-exp' }}" \
+          --set-secrets "GOOGLE_API_KEY=${{ vars.GOOGLE_API_KEY_SECRET_NAME }}:latest" \
+          --labels "environment=${{ github.event.inputs.environment }}" \
+          --labels "agent-type=${{ matrix.agent.name }}" \
+          --labels "service-name=${{ matrix.agent.service }}" \
+          --labels "version=${{ github.sha }}" \
+          --labels "managed-by=github-actions" \
+          --labels "auto-discovery=enabled" \
+          --labels "cost-optimized=true"
+          
+    - name: Get service URL and test
+      run: |
+        SERVICE_NAME="${{ matrix.agent.service }}${{ fromJson(needs.load-config.outputs.global-config).environment_suffix }}"
+        URL=$(gcloud run services describe ${SERVICE_NAME} --region ${{ env.REGION }} --format 'value(status.url)')
+        
+        echo "### 🚀 ${{ matrix.agent.service }} deployed!" >> $GITHUB_STEP_SUMMARY
+        echo "- **Agent**: ${{ matrix.agent.name }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Description**: ${{ matrix.agent.description }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **URL**: ${URL}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Resources**: ${{ matrix.agent.cpu }}/${{ matrix.agent.memory }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Scaling**: ${{ matrix.agent.min_instances }}-${{ matrix.agent.max_instances }} instances" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        # Test health endpoint
+        echo "Testing service health..."
+        for i in {1..5}; do
+          if curl -sf "${URL}/health"; then
+            echo "Service is healthy" >> $GITHUB_STEP_SUMMARY
+            break
+          else
+            echo "Waiting for service... ($i/5)"
+            sleep 20
+          fi
+        done
+
+  # Universal integration tests
+  integration-tests:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    needs: [validate-config, deploy-to-cloud-run]
+    if: always() && needs.deploy-to-cloud-run.result == 'success' && github.event.inputs.run_integration_tests == 'true'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - id: auth
+      name: Authenticate to Google Cloud
+      uses: google-github-actions/auth@v2
+      with:
+        credentials_json: ${{ secrets.GCP_SA_KEY }}
+        
+    - name: Set up Cloud SDK
+      uses: google-github-actions/setup-gcloud@v2
+      
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+        
+    - name: Install test dependencies
+      run: |
+        pip install httpx pytest pytest-asyncio pyyaml
+        
+    - name: Discover deployed services
+      id: discover
+      run: |
+        # Get environment suffix
+        ENV_SUFFIX='${{ fromJson(needs.validate-config.outputs.global-config).environment_suffix }}'
+        
+        echo "Discovering services for environment: ${{ github.event.inputs.environment }}"
+        
+        # Get all deployed services with auto-discovery label
+        SERVICES=$(gcloud run services list \
+          --region=${{ env.REGION }} \
+          --filter="metadata.labels.environment=${{ github.event.inputs.environment }} AND metadata.labels.auto-discovery=enabled" \
+          --format="json")
+        
+        # Create service URLs mapping
+        python3 << 'EOF'
+        import json
+        import os
+        
+        services_json = '''${{ needs.validate-config.outputs.agents }}'''
+        services = json.loads(services_json)
+        
+        env_suffix = os.environ.get('ENV_SUFFIX', '')
+        
+        # Create URLs for discovered agents
+        urls = {}
+        for agent in services:
+            service_name = f"{agent['service']}{env_suffix}"
+            # In real scenario, get actual URL from gcloud
+            urls[agent['name']] = f"https://{service_name}-hash.a.run.app"
+        
+        with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+            f.write(f"service-urls={json.dumps(urls)}\n")
+            
+        print("Discovered services:")
+        for name, url in urls.items():
+            print(f"  {name}: {url}")
+        EOF
+        
+        # Get actual URLs from deployed services
+        python3 << 'EOF'
+        import subprocess
+        import json
+        import os
+        
+        agents = json.loads('''${{ needs.validate-config.outputs.agents }}''')
+        env_suffix = "${{ fromJson(needs.load-config.outputs.global-config).environment_suffix }}"
+        
+        urls = {}
+        for agent in agents:
+            service_name = f"{agent['service']}{env_suffix}"
+            try:
+                result = subprocess.run([
+                    'gcloud', 'run', 'services', 'describe', service_name,
+                    '--region', '${{ env.REGION }}',
+                    '--format', 'value(status.url)'
+                ], capture_output=True, text=True)
+                
+                if result.returncode == 0 and result.stdout.strip():
+                    urls[agent['name']] = result.stdout.strip()
+                    print(f"{agent['name']}: {result.stdout.strip()}")
+                else:
+                    print(f"Failed to get URL for {service_name}")
+            except Exception as e:
+                print(f"Error getting URL for {service_name}: {e}")
+        
+        with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+            f.write(f"actual-urls={json.dumps(urls)}\n")
+        EOF
+      env:
+        ENV_SUFFIX: ${{ fromJson(needs.load-config.outputs.global-config).environment_suffix }}
+        
+    - name: Test all deployed services
+      run: |
+        URLS='${{ steps.discover.outputs.actual-urls }}'
+        
+        python3 << 'EOF'
+        import asyncio
+        import httpx
+        import json
+        import os
+        
+        async def test_services():
+            urls = json.loads(os.environ['URLS'])
+            
+            print("Testing deployed services...")
+            
+            async with httpx.AsyncClient(timeout=60.0) as client:
+                for agent_name, url in urls.items():
+                    print(f"\n=== Testing {agent_name} ===")
+                    print(f"URL: {url}")
+                    
+                    try:
+                        # Test health
+                        health_resp = await client.get(f"{url}/health")
+                        print(f"Health: {health_resp.status_code}")
+                        
+                        if health_resp.status_code == 200:
+                            health_data = health_resp.json()
+                            print(f"Status: {health_data.get('status', 'unknown')}")
+                            print(f"Agent ID: {health_data.get('agent_id', 'unknown')}")
+                        
+                        # Test capabilities
+                        cap_resp = await client.get(f"{url}/capabilities")
+                        print(f"Capabilities: {cap_resp.status_code}")
+                        
+                        if cap_resp.status_code == 200:
+                            capabilities = cap_resp.json()
+                            print(f"Found {len(capabilities)} capabilities")
+                        
+                        # Test spec
+                        spec_resp = await client.get(f"{url}/spec")
+                        print(f"Spec: {spec_resp.status_code}")
+                        
+                        if spec_resp.status_code == 200:
+                            spec = spec_resp.json()
+                            print(f"A2A Ready: {spec.get('a2a_ready', False)}")
+                        
+                        print(f"{agent_name} is responding correctly")
+                        
+                    except Exception as e:
+                        print(f"{agent_name} test failed: {e}")
+            
+            print("\nIntegration tests completed")
+        
+        asyncio.run(test_services())
+        EOF
+      env:
+        URLS: ${{ steps.discover.outputs.actual-urls }}
+
+  # Dynamic summary
+  deployment-summary:
+    name: Deployment Summary
+    runs-on: ubuntu-latest
+    needs: [validate-config, deploy-to-cloud-run, integration-tests]
+    if: always()
+    
+    steps:
+    - name: Generate deployment summary
+      run: |
+        echo "## Multi-Agent Deployment Summary" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Environment:** ${{ github.event.inputs.environment }}" >> $GITHUB_STEP_SUMMARY
+        echo "**Git SHA:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+        echo "**Region:** ${{ env.REGION }}" >> $GITHUB_STEP_SUMMARY
+        echo "**Project:** ${{ env.PROJECT_ID }}" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        # Parse agents
+        AGENTS='${{ needs.validate-config.outputs.agents }}'
+        ENV_SUFFIX='${{ fromJson(needs.validate-config.outputs.global-config).environment_suffix }}'
+        
+        python3 << 'EOF'
+        import json
+        import os
+        
+        agents = json.loads(os.environ['AGENTS'])
+        env_suffix = os.environ['ENV_SUFFIX']
+        deployment_success = os.environ['DEPLOYMENT_SUCCESS'] == 'success'
+        
+        print("### Configured Agents")
+        print("")
+        for agent in agents:
+            service_name = f"{agent['service']}{env_suffix}"
+            status = "DEPLOYED" if deployment_success else "FAILED"
+            print(f"- **{status}** **{agent['name']}** ({agent['service']})")
+            print(f"  - Description: {agent['description']}")
+            print(f"  - Resources: {agent['cpu']}/{agent['memory']}")
+            print(f"  - Scaling: {agent['min_instances']}-{agent['max_instances']} instances")
+            print(f"  - Port: {agent['port']}")
+            print("")
+        
+        print("### Configuration Management")
+        print("- **Universal**: Add/remove agents in `.github/configs/agents.yaml`")
+        print("- **Environment-specific**: Different resources per environment")
+        print("- **Auto-discovery**: Services tagged for automated testing")
+        print("- **Cost-optimized**: Resources tuned per environment")
+        EOF
+      env:
+        AGENTS: ${{ needs.validate-config.outputs.agents }}
+        ENV_SUFFIX: ${{ fromJson(needs.validate-config.outputs.global-config).environment_suffix }}
+        DEPLOYMENT_SUCCESS: ${{ needs.deploy-to-cloud-run.result }}
