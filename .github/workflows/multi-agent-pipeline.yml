@@ -410,15 +410,17 @@ jobs:
       run: |
         gcloud auth configure-docker ${{ env.REGISTRY }}
         
-    - name: Ensure repository exists
+    - name: Verify repository exists
       run: |
-        if ! gcloud artifacts repositories describe ${{ env.ARTIFACT_REPO }} \
+        echo "Checking if Artifact Registry repository exists..."
+        if gcloud artifacts repositories describe ${{ env.ARTIFACT_REPO }} \
            --location=${{ env.REGION }} >/dev/null 2>&1; then
-          echo "Creating Artifact Registry repository..."
-          gcloud artifacts repositories create ${{ env.ARTIFACT_REPO }} \
-            --repository-format=docker \
-            --location=${{ env.REGION }} \
-            --description="Multi-agent system containers (auto-created)"
+          echo "Repository ${{ env.ARTIFACT_REPO }} exists"
+        else
+          echo "ERROR: Repository ${{ env.ARTIFACT_REPO }} does not exist in region ${{ env.REGION }}"
+          echo "Please create it manually with:"
+          echo "gcloud artifacts repositories create ${{ env.ARTIFACT_REPO }} --repository-format=docker --location=${{ env.REGION }}"
+          exit 1
         fi
         
     - name: Verify agent directory exists
