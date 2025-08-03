@@ -475,6 +475,8 @@ jobs:
         echo "Successfully built and pushed ${{ matrix.agent.name }}"
 
   # Deploy to Cloud Run - depends on validation
+# Change to the deploy-to-cloud-run job in .github/workflows/multi-agent-pipeline.yml
+
   deploy-to-cloud-run:
     name: Deploy to Cloud Run
     runs-on: ubuntu-latest
@@ -539,6 +541,7 @@ jobs:
         echo "  Port: ${{ matrix.agent.port }}"
         
         # Deploy to Cloud Run with dynamic configuration
+        # IMPORTANT: Remove PORT from the environment variables as it's a reserved name
         gcloud run deploy ${SERVICE_NAME} \
           --image ${IMAGE_NAME}:${IMAGE_TAG} \
           --platform managed \
@@ -556,7 +559,6 @@ jobs:
           --set-env-vars "AGENT_ID=${{ matrix.agent.service }}" \
           --set-env-vars "AGENT_TYPE=${{ matrix.agent.name }}" \
           --set-env-vars "HOST=0.0.0.0" \
-          --set-env-vars "PORT=${{ matrix.agent.port }}" \
           --set-env-vars "LOG_LEVEL=${{ vars.LOG_LEVEL || 'INFO' }}" \
           --set-env-vars "ENVIRONMENT=${{ github.event.inputs.environment }}" \
           --set-env-vars "GEMINI_MODEL=${{ vars.GEMINI_MODEL || 'gemini-2.0-flash-exp' }}" \
