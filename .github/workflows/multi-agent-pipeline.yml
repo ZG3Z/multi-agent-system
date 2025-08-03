@@ -261,7 +261,41 @@ jobs:
             print("- `min_instances: 0` = Zero cost when idle")
             print("- Minimal resources = Ultra-low cost")
             print("- Smart concurrency = Fewer instances needed")
-        EOF >> $GITHUB_STEP_SUMMARY
+        EOF
+        
+        # Append the Python output to summary
+        python3 << 'SUMMARY_EOF' >> $GITHUB_STEP_SUMMARY
+        import yaml
+        
+        with open('.github/configs/agents.yaml') as f:
+            config = yaml.safe_load(f)
+        
+        if 'agents' in config:
+            print("### Configured Agents")
+            print("")
+            print("| Agent | Service | Port | CPU | Memory | Min/Max Instances |")
+            print("|-------|---------|------|-----|--------|-------------------|")
+            
+            for agent in config['agents']:
+                name = agent['name']
+                service = agent['service']
+                port = agent['port']
+                resources = agent['resources']['prod']
+                cpu = resources['cpu']
+                memory = resources['memory']
+                min_inst = resources['min_instances']
+                max_inst = resources['max_instances']
+                
+                print(f"| {name} | {service} | {port} | {cpu} | {memory} | {min_inst}/{max_inst} |")
+            
+            print("")
+            print(f"**Total agents:** {len(config['agents'])}")
+            print("")
+            print("### Cost Optimization")
+            print("- `min_instances: 0` = Zero cost when idle")
+            print("- Minimal resources = Ultra-low cost")
+            print("- Smart concurrency = Fewer instances needed")
+        SUMMARY_EOF
 
   # Code quality checks - depends on validation
   code-quality:
