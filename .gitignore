@@ -1,6 +1,7 @@
 # Environment variables
 .env
-load-testing-suite
+load-testing-suite/.env
+load-testing-suite/results
 
 # Python
 __pycache__/

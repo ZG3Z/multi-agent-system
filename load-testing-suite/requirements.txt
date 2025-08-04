@@ -1,0 +1,8 @@
+# requirements.txt (dla load testera)
+httpx
+asyncio
+redis
+fastapi
+uvicorn
+pydantic
+python-multipart

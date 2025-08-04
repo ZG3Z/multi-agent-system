@@ -1,0 +1,55 @@
+# docker-compose.yml
+
+services:
+  load-tester:
+    build:
+      context: .
+      dockerfile: Dockerfile.tester
+    container_name: agent-load-tester
+    environment:
+      - CREWAI_URL=${CREWAI_URL}
+      - LANGRAPH_URL=${LANGRAPH_URL}
+      - ADK_URL=${ADK_URL}
+      - TEST_MODE=${TEST_MODE:-minimal}
+    volumes:
+      - ./results:/app/results
+      - ./config:/app/config
+    ports:
+      - "8080:8080"
+    depends_on:
+      - redis
+    networks:
+      - testing-network
+
+  dashboard:
+    build:
+      context: .
+      dockerfile: Dockerfile.dashboard
+    container_name: test-dashboard
+    environment:
+      - REDIS_URL=redis://redis:6379
+    ports:
+      - "8081:8081"
+    depends_on:
+      - redis
+    volumes:
+      - ./results:/app/results
+    networks:
+      - testing-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: test-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - testing-network
+
+networks:
+  testing-network:
+    driver: bridge
+
+volumes:
+  redis_data:

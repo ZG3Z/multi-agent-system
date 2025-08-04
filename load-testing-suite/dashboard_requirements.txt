@@ -1,0 +1,8 @@
+# dashboard_requirements.txt (dla dashboard)
+fastapi
+uvicorn
+redis
+jinja2
+python-multipart
+plotly
+pandas
