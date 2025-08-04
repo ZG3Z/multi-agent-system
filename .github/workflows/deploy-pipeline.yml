@@ -495,18 +495,43 @@ jobs:
     - name: Set up Cloud SDK
       uses: google-github-actions/setup-gcloud@v2
       
-    - name: Ensure Secret Manager secret exists
+    - name: Ensure Secret Manager secret exists and validate
       run: |
-        SECRET_NAME="${{ vars.GOOGLE_API_KEY_SECRET_NAME }}"
+        SECRET_NAME="${{ vars.GOOGLE_API_KEY_SECRET_NAME || 'google-api-key-secret' }}"
+        
+        # Check if secret exists
         if gcloud secrets describe ${SECRET_NAME} >/dev/null 2>&1; then
-          echo "Secret ${SECRET_NAME} already exists, updating..."
-          echo "${{ secrets.GOOGLE_API_KEY }}" | gcloud secrets versions add ${SECRET_NAME} --data-file=-
+          echo "Secret ${SECRET_NAME} exists"
+          
+          # Get secret value and validate it
+          SECRET_VALUE=$(gcloud secrets versions access latest --secret=${SECRET_NAME})
+          SECRET_LENGTH=${#SECRET_VALUE}
+          
+          echo "Secret length: ${SECRET_LENGTH}"
+          
+          # Validate API key format (Google API keys start with AIza and are ~39 chars)
+          if [[ ${SECRET_VALUE} == AIza* ]] && [[ ${SECRET_LENGTH} -gt 35 ]]; then
+            echo "Secret appears to be valid Google API key"
+          else
+            echo "WARNING: Secret might not be valid Google API key format"
+            echo "Expected: AIza... with ~39 characters"
+            echo "Got: ${SECRET_VALUE:0:10}... with ${SECRET_LENGTH} characters"
+          fi
         else
           echo "Creating secret ${SECRET_NAME}..."
-          echo "${{ secrets.GOOGLE_API_KEY }}" | gcloud secrets create ${SECRET_NAME} --data-file=-
+          if [[ -z "${{ secrets.GOOGLE_API_KEY }}" ]]; then
+            echo "ERROR: GOOGLE_API_KEY GitHub secret is not set"
+            exit 1
+          fi
+          
+          # Validate GitHub secret before creating
+          if [[ "${{ secrets.GOOGLE_API_KEY }}" == AIza* ]]; then
+            echo "${{ secrets.GOOGLE_API_KEY }}" | gcloud secrets create ${SECRET_NAME} --data-file=-
+          else
+            echo "ERROR: GOOGLE_API_KEY in GitHub secrets doesn't appear to be valid"
+            exit 1
+          fi
         fi
-        
-        echo "Secret ${SECRET_NAME} is ready"
         
     - name: Deploy ${{ matrix.agent.service }} to Cloud Run
       id: deploy
@@ -522,17 +547,16 @@ jobs:
         SERVICE_NAME="${{ matrix.agent.service }}${ENV_SUFFIX}"
         IMAGE_NAME="${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/${{ env.ARTIFACT_REPO }}/${{ matrix.agent.name }}"
         IMAGE_TAG="${{ github.event.inputs.environment }}-${{ github.sha }}"
+        SECRET_NAME="${{ vars.GOOGLE_API_KEY_SECRET_NAME || 'google-api-key-secret' }}"
         
         echo "Deploying ${{ matrix.agent.name }} as ${SERVICE_NAME}..."
+        echo "  Image: ${IMAGE_NAME}:${IMAGE_TAG}"
+        echo "  Secret: ${SECRET_NAME}"
         echo "  CPU: ${{ matrix.agent.cpu }}"
         echo "  Memory: ${{ matrix.agent.memory }}"
-        echo "  Min instances: ${{ matrix.agent.min_instances }}"
-        echo "  Max instances: ${{ matrix.agent.max_instances }}"
-        echo "  Concurrency: ${{ matrix.agent.concurrency }}"
         echo "  Port: ${{ matrix.agent.port }}"
         
-        # Deploy to Cloud Run with dynamic configuration
-        # IMPORTANT: Remove PORT from the environment variables as it's a reserved name
+        # Deploy to Cloud Run with explicit environment variables
         gcloud run deploy ${SERVICE_NAME} \
           --image ${IMAGE_NAME}:${IMAGE_TAG} \
           --platform managed \
@@ -547,13 +571,14 @@ jobs:
           --concurrency ${{ matrix.agent.concurrency }} \
           --execution-environment ${EXEC_ENV} \
           $([ "$CPU_BOOST" = "true" ] && echo "--cpu-boost") \
-          --set-env-vars "AGENT_ID=${{ matrix.agent.service }}" \
-          --set-env-vars "AGENT_TYPE=${{ matrix.agent.name }}" \
-          --set-env-vars "HOST=0.0.0.0" \
-          --set-env-vars "LOG_LEVEL=${{ vars.LOG_LEVEL || 'INFO' }}" \
-          --set-env-vars "ENVIRONMENT=${{ github.event.inputs.environment }}" \
-          --set-env-vars "GEMINI_MODEL=${{ vars.GEMINI_MODEL || 'gemini-2.0-flash-exp' }}" \
-          --set-secrets "GOOGLE_API_KEY=${{ vars.GOOGLE_API_KEY_SECRET_NAME }}:latest" \
+          --update-env-vars "AGENT_ID=${{ matrix.agent.service }}" \
+          --update-env-vars "AGENT_TYPE=${{ matrix.agent.name }}" \
+          --update-env-vars "HOST=0.0.0.0" \
+          --update-env-vars "PORT=${{ matrix.agent.port }}" \
+          --update-env-vars "LOG_LEVEL=${{ vars.LOG_LEVEL || 'INFO' }}" \
+          --update-env-vars "ENVIRONMENT=${{ github.event.inputs.environment }}" \
+          --update-env-vars "GEMINI_MODEL=${{ vars.GEMINI_MODEL || 'gemini-2.0-flash-exp' }}" \
+          --update-secrets "GOOGLE_API_KEY=${SECRET_NAME}:latest" \
           --labels "environment=${{ github.event.inputs.environment }}" \
           --labels "agent-type=${{ matrix.agent.name }}" \
           --labels "service-name=${{ matrix.agent.service }}" \
@@ -561,6 +586,52 @@ jobs:
           --labels "managed-by=github-actions" \
           --labels "auto-discovery=enabled" \
           --labels "cost-optimized=true"
+          
+        echo "Deployment completed successfully"
+        
+    - name: Verify deployment and environment variables
+      run: |
+        SERVICE_NAME="${{ matrix.agent.service }}${{ fromJson(needs.validate-config.outputs.global-config).environment_suffix }}"
+        
+        echo "Verifying deployment for ${SERVICE_NAME}..."
+        
+        # Check service status
+        gcloud run services describe ${SERVICE_NAME} --region ${{ env.REGION }} --format="value(status.conditions[0].status)"
+        
+        # Get service URL
+        URL=$(gcloud run services describe ${SERVICE_NAME} --region ${{ env.REGION }} --format 'value(status.url)')
+        echo "Service URL: ${URL}"
+        
+        # Check environment variables
+        echo "Environment variables:"
+        gcloud run services describe ${SERVICE_NAME} --region ${{ env.REGION }} --format="table(spec.template.spec.template.spec.containers[0].env[].name,spec.template.spec.template.spec.containers[0].env[].value)"
+        
+        # Check secrets
+        echo "Mounted secrets:"
+        gcloud run services describe ${SERVICE_NAME} --region ${{ env.REGION }} --format="table(spec.template.spec.template.spec.containers[0].env[].name,spec.template.spec.template.spec.containers[0].env[].valueFrom.secretKeyRef.name)"
+        
+        # Test health endpoint with retry
+        echo "Testing service health..."
+        for i in {1..10}; do
+          echo "Health check attempt $i/10..."
+          if curl -sf --max-time 10 "${URL}/health"; then
+            echo ""
+            echo "✅ Service is healthy!"
+            break
+          else
+            echo "❌ Health check failed, waiting 15s..."
+            if [ $i -eq 10 ]; then
+              echo "❌ Service failed to become healthy after 10 attempts"
+              
+              # Get logs for debugging
+              echo "Recent logs:"
+              gcloud run services logs read ${SERVICE_NAME} --region ${{ env.REGION }} --limit=20
+              
+              exit 1
+            fi
+            sleep 15
+          fi
+        done
           
     - name: Get service URL and test
       run: |
@@ -571,7 +642,6 @@ jobs:
         echo "Testing service health..."
         for i in {1..5}; do
           if curl -sf "${URL}/health"; then
-            echo "Service is healthy" >> $GITHUB_STEP_SUMMARY
             break
           else
             echo "Waiting for service... ($i/5)"

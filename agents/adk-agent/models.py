@@ -16,6 +16,8 @@ class TaskRequest(BaseModel):
     collaborators: Optional[Dict[str, str]] = None
     timeout: Optional[int] = Field(default=300, description="Timeout in seconds")
 
+
+
 class TaskResult(BaseModel):
     success: bool
     result: Dict[str, Any]
