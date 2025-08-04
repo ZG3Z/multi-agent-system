@@ -1,4 +1,4 @@
-# Dockerfile.tester
+# Dockerfile.tester - Enhanced for 3-level testing
 FROM python:3.11-slim
 
 WORKDIR /app
@@ -12,8 +12,12 @@ RUN apt-get update && apt-get install -y \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy application code
-COPY . .
+# Copy application code and test files
+COPY load_test_runner.py .
+COPY basic_tests.py .
+COPY functional_tests.py .
+COPY workflow_tests.py .
+COPY minimal_load_testing.py .
 
 # Create results directory
 RUN mkdir -p /app/results

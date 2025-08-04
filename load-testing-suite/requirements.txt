@@ -1,4 +1,4 @@
-# requirements.txt (dla load testera)
+# requirements.txt - Enhanced for 3-level testing
 httpx
 asyncio
 redis
@@ -6,3 +6,4 @@ fastapi
 uvicorn
 pydantic
 python-multipart
+dataclasses

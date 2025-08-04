@@ -1,4 +1,4 @@
-# docker-compose.yml
+# docker-compose.yml - Enhanced for 3-level testing
 
 services:
   load-tester:
@@ -10,7 +10,8 @@ services:
       - CREWAI_URL=${CREWAI_URL}
       - LANGRAPH_URL=${LANGRAPH_URL}
       - ADK_URL=${ADK_URL}
-      - TEST_MODE=${TEST_MODE:-minimal}
+      - TEST_MODE=${TEST_MODE:-basic}
+      - TEST_LEVEL=${TEST_LEVEL:-1}
     volumes:
       - ./results:/app/results
       - ./config:/app/config

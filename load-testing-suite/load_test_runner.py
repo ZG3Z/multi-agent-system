@@ -1,7 +1,6 @@
-# load_test_runner.py
+# load_test_runner.py - Updated with 3-level testing
 """
-Load Test Runner with FastAPI interface
-Provides REST API to control and monitor testing
+Enhanced Load Test Runner with 3-level testing system
 """
 
 import asyncio
@@ -13,15 +12,20 @@ from datetime import datetime
 from typing import Dict, List, Optional
 from fastapi import FastAPI, HTTPException, BackgroundTasks
 from pydantic import BaseModel
-from minimal_load_testing import MinimalLoadTester, TestResult
 
-# Configuration from environment
+# Import test modules
+from basic_tests import run_basic_tests
+from functional_tests import run_functional_tests
+from workflow_tests import run_workflow_tests
+
+# Configuration
 CREWAI_URL = os.getenv("CREWAI_URL", "https://crewai-agent-REPLACE.run.app")
 LANGRAPH_URL = os.getenv("LANGRAPH_URL", "https://langraph-agent-REPLACE.run.app")
 ADK_URL = os.getenv("ADK_URL", "https://adk-agent-REPLACE.run.app")
 REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379")
+TEST_LEVEL = int(os.getenv("TEST_LEVEL", "1"))
 
-app = FastAPI(title="Agent Load Tester API", version="1.0.0")
+app = FastAPI(title="3-Level Agent Load Tester API", version="2.0.0")
 
 # Redis connection
 try:
@@ -31,24 +35,19 @@ except Exception as e:
     redis_client = None
 
 # Global test state
-current_test_status = {"running": False, "test_id": None}
+current_test_status = {"running": False, "test_id": None, "level": None}
 
 class TestConfig(BaseModel):
     test_name: str = "default_test"
+    test_level: int = 1
     crewai_url: Optional[str] = None
     langraph_url: Optional[str] = None
     adk_url: Optional[str] = None
-    run_health_check: bool = True
-    run_capabilities: bool = True
-    run_a2a_test: bool = True
-    run_collaboration_test: bool = True  # New collaboration test
-    run_latency_test: bool = True
-    run_task_test: bool = False  # Disabled by default to save API calls
-    latency_requests_per_agent: int = 3
 
 class TestStatus(BaseModel):
     running: bool
     test_id: Optional[str]
+    test_level: Optional[int]
     progress: str
     total_requests_sent: int = 0
     current_test: str = ""
@@ -56,11 +55,16 @@ class TestStatus(BaseModel):
 @app.get("/")
 async def root():
     return {
-        "service": "Agent Load Tester",
+        "service": "3-Level Agent Load Tester",
         "status": "ready",
+        "test_levels": {
+            "1": "Basic Tests (9 requests)",
+            "2": "Functional Tests (12-15 requests)",
+            "3": "Workflow Tests (15-18 requests)"
+        },
         "endpoints": {
             "start_test": "/test/start",
-            "status": "/test/status", 
+            "status": "/test/status",
             "results": "/test/results/{test_id}",
             "config": "/config"
         }
@@ -76,17 +80,23 @@ async def get_config():
             "adk": ADK_URL
         },
         "redis_connected": redis_client is not None,
+        "test_levels_available": [1, 2, 3],
+        "default_test_level": TEST_LEVEL,
         "test_status": current_test_status
     }
 
 @app.post("/test/start")
 async def start_test(config: TestConfig, background_tasks: BackgroundTasks):
-    """Start a new load test"""
+    """Start a test at specified level"""
     if current_test_status["running"]:
         raise HTTPException(status_code=400, detail="Test already running")
     
+    # Validate test level
+    if config.test_level not in [1, 2, 3]:
+        raise HTTPException(status_code=400, detail="Test level must be 1, 2, or 3")
+    
     # Generate test ID
-    test_id = f"test_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+    test_id = f"test_L{config.test_level}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
     
     # Update agent URLs if provided
     agent_urls = {
@@ -99,19 +109,22 @@ async def start_test(config: TestConfig, background_tasks: BackgroundTasks):
     for name, url in agent_urls.items():
         if "REPLACE" in url:
             raise HTTPException(
-                status_code=400, 
+                status_code=400,
                 detail=f"Please provide valid URL for {name} agent"
             )
     
     # Start test in background
-    background_tasks.add_task(run_load_test, test_id, config, agent_urls)
+    background_tasks.add_task(run_level_test, test_id, config, agent_urls)
     
     current_test_status["running"] = True
     current_test_status["test_id"] = test_id
+    current_test_status["level"] = config.test_level
     
     return {
         "test_id": test_id,
+        "test_level": config.test_level,
         "status": "started",
+        "estimated_requests": get_estimated_requests(config.test_level),
         "config": config.dict(),
         "agent_urls": agent_urls
     }
@@ -120,7 +133,6 @@ async def start_test(config: TestConfig, background_tasks: BackgroundTasks):
 async def get_test_status():
     """Get current test status"""
     if redis_client and current_test_status["test_id"]:
-        # Get detailed status from Redis
         test_id = current_test_status["test_id"]
         status_data = redis_client.get(f"test_status:{test_id}")
         
@@ -155,7 +167,8 @@ async def list_test_results():
     if redis_client:
         for key in redis_client.scan_iter("test_results:*"):
             test_id = key.replace("test_results:", "")
-            results.append({"test_id": test_id, "source": "redis"})
+            level = extract_level_from_test_id(test_id)
+            results.append({"test_id": test_id, "level": level, "source": "redis"})
     
     # Check file system
     results_dir = "/app/results"
@@ -163,118 +176,72 @@ async def list_test_results():
         for filename in os.listdir(results_dir):
             if filename.startswith("load_test_results_") and filename.endswith(".json"):
                 test_id = filename.replace("load_test_results_", "").replace(".json", "")
+                level = extract_level_from_test_id(test_id)
                 if not any(r["test_id"] == test_id for r in results):
-                    results.append({"test_id": test_id, "source": "file"})
+                    results.append({"test_id": test_id, "level": level, "source": "file"})
     
     return {"test_results": results}
 
-async def run_load_test(test_id: str, config: TestConfig, agent_urls: Dict[str, str]):
-    """Run the actual load test"""
+async def run_level_test(test_id: str, config: TestConfig, agent_urls: Dict[str, str]):
+    """Run test at specified level"""
     try:
-        # Update status
-        update_test_status(test_id, "initializing", 0, "Setting up test")
+        update_test_status(test_id, "initializing", 0, f"Starting Level {config.test_level} test")
         
-        # Create tester
-        tester = MinimalLoadTester(agent_urls)
-        all_results = []
-        total_requests = 0
+        start_time = datetime.now()
         
-        # Estimate total requests
-        estimated_requests = 0
-        if config.run_health_check: estimated_requests += 3
-        if config.run_capabilities: estimated_requests += 3
-        if config.run_a2a_test: estimated_requests += 3
-        if config.run_collaboration_test: estimated_requests += 6  # Collaboration scenarios
-        if config.run_latency_test: estimated_requests += 3 * config.latency_requests_per_agent
-        if config.run_task_test: estimated_requests += 3
+        # Run appropriate test level
+        if config.test_level == 1:
+            update_test_status(test_id, "running", 0, "Running basic tests")
+            test_results = await run_basic_tests(agent_urls)
+        elif config.test_level == 2:
+            update_test_status(test_id, "running", 0, "Running functional tests")
+            test_results = await run_functional_tests(agent_urls)
+        elif config.test_level == 3:
+            update_test_status(test_id, "running", 0, "Running workflow tests")
+            test_results = await run_workflow_tests(agent_urls)
+        else:
+            raise ValueError(f"Invalid test level: {config.test_level}")
         
-        try:
-            # Run selected tests
-            if config.run_health_check:
-                update_test_status(test_id, "running", total_requests, "Health check test")
-                results = await tester.health_check_test()
-                all_results.extend(results)
-                total_requests += len(results)
-                await asyncio.sleep(2)
-            
-            if config.run_capabilities:
-                update_test_status(test_id, "running", total_requests, "Capabilities test")
-                results = await tester.capabilities_test()
-                all_results.extend(results)
-                total_requests += len(results)
-                await asyncio.sleep(2)
-            
-            if config.run_a2a_test:
-                update_test_status(test_id, "running", total_requests, "A2A communication test")
-                results = await tester.a2a_communication_test()
-                all_results.extend(results)
-                total_requests += len(results)
-                await asyncio.sleep(3)
-            
-            if config.run_collaboration_test:
-                update_test_status(test_id, "running", total_requests, "Agent collaboration test")
-                results = await tester.collaboration_test()
-                all_results.extend(results)
-                total_requests += len(results)
-                await asyncio.sleep(5)  # Longer delay for collaboration
-            
-            if config.run_latency_test:
-                update_test_status(test_id, "running", total_requests, "Latency test")
-                results = await tester.latency_test(config.latency_requests_per_agent)
-                all_results.extend(results)
-                total_requests += len(results)
-                await asyncio.sleep(3)
-            
-            if config.run_task_test:
-                update_test_status(test_id, "running", total_requests, "Basic task test")
-                results = await tester.basic_task_test()
-                all_results.extend(results)
-                total_requests += len(results)
-            
-            # Analyze results
-            update_test_status(test_id, "analyzing", total_requests, "Analyzing results")
-            analysis = tester.analyze_results(all_results)
-            
-            # Save results
-            test_results = {
-                "test_id": test_id,
-                "test_name": config.test_name,
-                "timestamp": datetime.now().isoformat(),
-                "config": config.dict(),
-                "agent_urls": agent_urls,
-                "total_requests": len(all_results),
-                "results": [result.__dict__ for result in all_results],
-                "analysis": analysis
-            }
-            
-            # Save to Redis
-            if redis_client:
-                redis_client.set(
-                    f"test_results:{test_id}", 
-                    json.dumps(test_results), 
-                    ex=86400  # Expire after 24 hours
-                )
-            
-            # Save to file
-            os.makedirs("/app/results", exist_ok=True)
-            with open(f"/app/results/load_test_results_{test_id}.json", 'w') as f:
-                json.dump(test_results, f, indent=2)
-            
-            # Final status
-            update_test_status(test_id, "completed", total_requests, "Test completed successfully")
-            
-        finally:
-            await tester.close()
-            
+        # Add test metadata
+        test_results.update({
+            "test_id": test_id,
+            "test_name": config.test_name,
+            "test_level": config.test_level,
+            "start_time": start_time.isoformat(),
+            "end_time": datetime.now().isoformat(),
+            "config": config.dict(),
+            "agent_urls": agent_urls
+        })
+        
+        # Save results
+        save_test_results(test_id, test_results)
+        
+        update_test_status(test_id, "completed", len(test_results.get("results", [])), "Test completed successfully")
+        
     except Exception as e:
-        error_msg = f"Test failed: {str(e)}"
-        update_test_status(test_id, "failed", total_requests, error_msg)
+        error_msg = f"Level {config.test_level} test failed: {str(e)}"
+        update_test_status(test_id, "failed", 0, error_msg)
         print(f"Test {test_id} failed: {e}")
     
     finally:
-        # Reset global status
         current_test_status["running"] = False
         current_test_status["test_id"] = None
+        current_test_status["level"] = None
+
+def save_test_results(test_id: str, test_results: Dict):
+    """Save test results to Redis and file"""
+    # Save to Redis
+    if redis_client:
+        redis_client.set(
+            f"test_results:{test_id}",
+            json.dumps(test_results),
+            ex=86400  # Expire after 24 hours
+        )
+    
+    # Save to file
+    os.makedirs("/app/results", exist_ok=True)
+    with open(f"/app/results/load_test_results_{test_id}.json", 'w') as f:
+        json.dump(test_results, f, indent=2)
 
 def update_test_status(test_id: str, status: str, requests_sent: int, current_test: str):
     """Update test status in Redis"""
@@ -287,19 +254,34 @@ def update_test_status(test_id: str, status: str, requests_sent: int, current_te
     
     if redis_client:
         redis_client.set(
-            f"test_status:{test_id}", 
-            json.dumps(status_data), 
+            f"test_status:{test_id}",
+            json.dumps(status_data),
             ex=3600  # Expire after 1 hour
         )
 
+def get_estimated_requests(level: int) -> int:
+    """Get estimated request count for test level"""
+    estimates = {1: 9, 2: 15, 3: 18}
+    return estimates.get(level, 9)
+
+def extract_level_from_test_id(test_id: str) -> int:
+    """Extract test level from test ID"""
+    try:
+        if "_L" in test_id:
+            return int(test_id.split("_L")[1].split("_")[0])
+    except:
+        pass
+    return 1
+
 @app.on_event("startup")
 async def startup_event():
-    print("Agent Load Tester started")
+    print("3-Level Agent Load Tester started")
     print(f"Agent URLs:")
     print(f"  CrewAI: {CREWAI_URL}")
     print(f"  LangGraph: {LANGRAPH_URL}")
     print(f"  ADK: {ADK_URL}")
     print(f"Redis: {'Connected' if redis_client else 'Not connected'}")
+    print(f"Default test level: {TEST_LEVEL}")
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8080)

@@ -1,10 +1,10 @@
-# Makefile for Load Testing Suite
+# Makefile for 3-Level Load Testing Suite
 
 .PHONY: help build start stop test dashboard logs clean setup
 
 # Default target
 help:
-	@echo "Load Testing Suite Commands"
+	@echo "3-Level Load Testing Suite Commands"
 	@echo ""
 	@echo "Setup:"
 	@echo "  make setup     - Initial setup and configuration"
@@ -15,32 +15,36 @@ help:
 	@echo "  make stop      - Stop all services"
 	@echo "  make restart   - Restart all services"
 	@echo ""
-	@echo "Testing:"
-	@echo "  make test              - Run minimal load test"
-	@echo "  make test-health       - Run only health checks"
-	@echo "  make test-capabilities - Run only capabilities test"
-	@echo "  make test-a2a          - Run only A2A communication test"
+	@echo "Testing Levels:"
+	@echo "  make test-level1   - Run Level 1: Basic tests (9 requests)"
+	@echo "  make test-level2   - Run Level 2: Functional tests (12-15 requests)"
+	@echo "  make test-level3   - Run Level 3: Workflow tests (15-18 requests)"
+	@echo "  make test-all      - Run all 3 levels sequentially"
+	@echo ""
+	@echo "Legacy Commands:"
+	@echo "  make test          - Run Level 1 (default)"
+	@echo "  make test-health   - Run basic health check"
 	@echo ""
 	@echo "Monitoring:"
-	@echo "  make dashboard - Open dashboard in browser"
-	@echo "  make logs      - Show all logs"
-	@echo "  make status    - Show service status"
+	@echo "  make dashboard     - Open dashboard in browser"
+	@echo "  make logs          - Show all logs"
+	@echo "  make status        - Show service status"
 	@echo ""
 	@echo "Maintenance:"
-	@echo "  make clean     - Clean up containers and volumes"
-	@echo "  make reset     - Complete system reset"
+	@echo "  make clean         - Clean up containers and volumes"
+	@echo "  make reset         - Complete system reset"
 
 # Setup and configuration
 setup:
-	@echo "Setting up Load Testing Suite..."
+	@echo "Setting up 3-Level Load Testing Suite..."
 	@if [ ! -f .env ]; then \
 		echo "Creating .env file from template..."; \
 		cp .env.example .env; \
 		echo ""; \
 		echo "IMPORTANT: Please edit .env file and update Cloud Run URLs:"; \
-		echo "  CREWAI_URL=https://crewai-agent-YOUR-PROJECT-ID.a.run.app/health"; \
-		echo "  LANGRAPH_URL=https://langraph-agent-YOUR-PROJECT-ID.a.run.app/health"; \
-		echo "  ADK_URL=https://adk-agent-YOUR-PROJECT-ID.a.run.app/health"; \
+		echo "  CREWAI_URL=https://crewai-agent-YOUR-PROJECT-ID.a.run.app"; \
+		echo "  LANGRAPH_URL=https://langraph-agent-YOUR-PROJECT-ID.a.run.app"; \
+		echo "  ADK_URL=https://adk-agent-YOUR-PROJECT-ID.a.run.app"; \
 		echo ""; \
 	fi
 	@mkdir -p results config dashboard/templates
@@ -53,15 +57,20 @@ build:
 
 # Start the testing stack
 start:
-	@echo "Starting load testing stack..."
+	@echo "Starting 3-level load testing stack..."
 	@docker-compose up -d
 	@echo "Services starting..."
 	@sleep 5
 	@echo ""
-	@echo "Load Testing Suite is running:"
+	@echo "3-Level Load Testing Suite is running:"
 	@echo "  Load Tester API: http://localhost:8080"
 	@echo "  Dashboard:       http://localhost:8081"
 	@echo "  Redis:           localhost:6379"
+	@echo ""
+	@echo "Available test levels:"
+	@echo "  Level 1: Basic tests (9 requests)"
+	@echo "  Level 2: Functional tests (12-15 requests)"
+	@echo "  Level 3: Workflow tests (15-18 requests)"
 
 # Stop all services
 stop:
@@ -71,42 +80,64 @@ stop:
 # Restart services
 restart: stop start
 
-# Run minimal load test
-test:
-	@echo "Running minimal load test..."
+# Test Level 1: Basic Tests
+test-level1:
+	@echo "Running Level 1: Basic Tests (9 requests)..."
 	@curl -X POST http://localhost:8080/test/start \
 		-H "Content-Type: application/json" \
-		-d '{"test_name": "minimal_test", "run_task_test": false}' \
+		-d '{"test_name": "level1_basic", "test_level": 1}' \
 		|| echo "Make sure services are running: make start"
 
-# Run health check only
+# Test Level 2: Functional Tests
+test-level2:
+	@echo "Running Level 2: Functional Tests (12-15 requests)..."
+	@curl -X POST http://localhost:8080/test/start \
+		-H "Content-Type: application/json" \
+		-d '{"test_name": "level2_functional", "test_level": 2}' \
+		|| echo "Make sure services are running: make start"
+
+# Test Level 3: Workflow Tests
+test-level3:
+	@echo "Running Level 3: Workflow Tests (15-18 requests)..."
+	@curl -X POST http://localhost:8080/test/start \
+		-H "Content-Type: application/json" \
+		-d '{"test_name": "level3_workflow", "test_level": 3}' \
+		|| echo "Make sure services are running: make start"
+
+# Run all levels sequentially
+test-all:
+	@echo "Running all 3 test levels sequentially..."
+	@echo "Starting with Level 1..."
+	@make test-level1
+	@sleep 30
+	@echo "Starting Level 2..."
+	@make test-level2
+	@sleep 45
+	@echo "Starting Level 3..."
+	@make test-level3
+	@echo "All levels completed!"
+
+# Legacy: Run Level 1 (backwards compatibility)
+test: test-level1
+
+# Legacy: Health check
 test-health:
-	@echo "Running health check test..."
+	@echo "Running basic health check..."
 	@curl -X POST http://localhost:8080/test/start \
 		-H "Content-Type: application/json" \
-		-d '{"test_name": "health_check_only", "run_health_check": true, "run_capabilities": false, "run_a2a_test": false, "run_latency_test": false, "run_task_test": false}'
-
-# Run capabilities test only
-test-capabilities:
-	@echo "Running capabilities test..."
-	@curl -X POST http://localhost:8080/test/start \
-		-H "Content-Type: application/json" \
-		-d '{"test_name": "capabilities_only", "run_health_check": false, "run_capabilities": true, "run_a2a_test": false, "run_latency_test": false, "run_task_test": false}'
-
-# Run A2A communication test only
-test-a2a:
-	@echo "Running A2A communication test..."
-	@curl -X POST http://localhost:8080/test/start \
-		-H "Content-Type: application/json" \
-		-d '{"test_name": "a2a_only", "run_health_check": false, "run_capabilities": false, "run_a2a_test": true, "run_latency_test": false, "run_task_test": false}'
+		-d '{"test_name": "health_check", "test_level": 1}' \
+		|| echo "Make sure services are running: make start"
 
 # Check test status
 status:
-	@echo "Load Testing Suite Status:"
+	@echo "3-Level Load Testing Suite Status:"
 	@docker-compose ps
 	@echo ""
 	@echo "Test Status:"
 	@curl -s http://localhost:8080/test/status | python3 -m json.tool || echo "API not available"
+	@echo ""
+	@echo "Configuration:"
+	@curl -s http://localhost:8080/config | python3 -m json.tool || echo "API not available"
 
 # Open dashboard
 dashboard:
@@ -155,10 +186,8 @@ dev-logs:
 	@docker-compose logs -f load-tester dashboard
 
 # Quick test with status check
-quick-test:
-	@echo "Running quick test..."
-	@make test-health
-	@sleep 3
+quick-test: test-level1
+	@sleep 10
 	@echo "Test status:"
 	@curl -s http://localhost:8080/test/status | python3 -m json.tool
 
@@ -167,15 +196,18 @@ config:
 	@echo "Current configuration:"
 	@curl -s http://localhost:8080/config | python3 -m json.tool || echo "API not available"
 
+# Show available test results
+results:
+	@echo "Available test results:"
+	@curl -s http://localhost:8080/test/results | python3 -m json.tool || echo "API not available"
+
 # Install dependencies for local development
 install-deps:
 	@echo "Installing Python dependencies..."
 	@pip install httpx asyncio redis fastapi uvicorn pydantic python-multipart
-	@pip install jinja2 plotly pandas
 
 # Run locally (without Docker)
 run-local:
 	@echo "Starting services locally..."
 	@echo "Make sure Redis is running on localhost:6379"
-	@python load_test_runner.py &
-	@python dashboard/dashboard_app.py
+	@python load_test_runner.py

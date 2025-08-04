@@ -1,6 +1,6 @@
-# dashboard/data_processor.py
+# dashboard/data_processor.py - Enhanced version based on dashboard_old
 """
-Data processing logic for dashboard metrics
+Enhanced data processing logic - based on dashboard_old with additions
 """
 
 import os
@@ -89,7 +89,7 @@ class DataProcessor:
         return None
 
     def calculate_agent_stats(self, test_results: List[Dict]) -> Dict:
-        """Calculate per-agent statistics (A1, I1-I4, J1)"""
+        """Calculate per-agent statistics (enhanced with dashboard features)"""
         agent_stats = {}
         
         for test in test_results:
@@ -116,16 +116,16 @@ class DataProcessor:
         
         # Calculate summary stats
         for agent, stats in agent_stats.items():
-            # I1: Success Rate
+            # Success Rate
             stats["success_rate"] = (stats["successful_requests"] / stats["total_requests"] * 100) if stats["total_requests"] > 0 else 0
             
             if stats["response_times"]:
-                # I2: Average Response Time
+                # Response time stats
                 stats["avg_response_time"] = statistics.mean(stats["response_times"])
                 stats["min_response_time"] = min(stats["response_times"])
                 stats["max_response_time"] = max(stats["response_times"])
                 
-                # J1: P95 Response Time
+                # P95 Response Time (enhanced from dashboard)
                 sorted_times = sorted(stats["response_times"])
                 if len(sorted_times) > 1:
                     p95_index = int(len(sorted_times) * 0.95)
@@ -141,13 +141,13 @@ class DataProcessor:
                 stats["p95_response_time"] = 0
                 stats["std_response_time"] = 0
             
-            # I4: Error Count
+            # Error Count
             stats["error_count"] = len(stats["errors"])
         
         return agent_stats
 
     def calculate_basic_metrics(self, test_results: List[Dict]) -> Dict:
-        """Calculate basic dashboard metrics (I1-I4)"""
+        """Calculate basic dashboard metrics"""
         if not test_results:
             return {
                 "total_tests": 0,
@@ -176,7 +176,7 @@ class DataProcessor:
         }
 
     def calculate_p95_metrics(self, test_results: List[Dict]) -> Dict:
-        """Calculate P95 response time metrics (J1)"""
+        """Calculate P95 response time metrics (enhanced from dashboard)"""
         all_response_times = []
         
         for test in test_results:
@@ -196,52 +196,15 @@ class DataProcessor:
             "p99_response_time": sorted_times[p99_index] if p99_index < len(sorted_times) else sorted_times[-1]
         }
 
-    def calculate_test_duration_analysis(self, test_results: List[Dict]) -> Dict:
-        """Calculate test duration analysis (B3)"""
-        test_durations = {}
-        
-        for test in test_results:
-            test_name = test.get("test_name", "unknown")
-            if test_name not in test_durations:
-                test_durations[test_name] = []
-            
-            # Estimate test duration from timestamp and results
-            if test.get("results"):
-                timestamps = []
-                for result in test.get("results", []):
-                    if result.get("timestamp"):
-                        try:
-                            ts = datetime.fromisoformat(result.get("timestamp").replace("Z", "+00:00"))
-                            timestamps.append(ts)
-                        except:
-                            continue
-                
-                if len(timestamps) > 1:
-                    duration = (max(timestamps) - min(timestamps)).total_seconds()
-                    test_durations[test_name].append(duration)
-        
-        # Calculate stats for each test type
-        duration_stats = {}
-        for test_name, durations in test_durations.items():
-            if durations:
-                duration_stats[test_name] = {
-                    "avg_duration": statistics.mean(durations),
-                    "min_duration": min(durations),
-                    "max_duration": max(durations),
-                    "count": len(durations)
-                }
-        
-        return duration_stats
-
     def calculate_a2a_metrics(self, test_results: List[Dict]) -> Dict:
-        """Calculate A2A communication metrics (K1, K2)"""
+        """Calculate A2A communication metrics (enhanced from dashboard)"""
         a2a_requests = []
         a2a_successful = 0
         
         for test in test_results:
             for result in test.get("results", []):
                 test_name = result.get("test_name", "")
-                if "a2a" in test_name.lower() or "communication" in test_name.lower():
+                if "a2a" in test_name.lower() or "communication" in test_name.lower() or "collaboration" in test_name.lower():
                     a2a_requests.append(result)
                     if result.get("success", False):
                         a2a_successful += 1
@@ -254,13 +217,13 @@ class DataProcessor:
                 "a2a_communication_latency": 0
             }
         
-        # K1: Inter-agent Communication Latency
+        # A2A Communication Latency
         a2a_response_times = [r.get("response_time", 0) for r in a2a_requests if r.get("success") and "response_time" in r]
         avg_latency = statistics.mean(a2a_response_times) if a2a_response_times else 0
         
         return {
             "a2a_total_requests": len(a2a_requests),
-            "a2a_success_rate": (a2a_successful / len(a2a_requests) * 100) if a2a_requests else 0,  # K2
-            "a2a_avg_latency": avg_latency,  # K1
-            "a2a_communication_latency": avg_latency  # K1 alias
+            "a2a_success_rate": (a2a_successful / len(a2a_requests) * 100) if a2a_requests else 0,
+            "a2a_avg_latency": avg_latency,
+            "a2a_communication_latency": avg_latency
         }
